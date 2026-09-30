@@ -6,6 +6,7 @@
 // rise, words rise out of masks, big numbers roll like an odometer, slow camera push + drifting glow
 // keep the hold alive. Every template settles by ~2.5 s (scenes are 4.5–7.5 s).
 
+import { buildDossier, dossierBackground, dossierCss } from './dossier.ts';
 import { geoView, type BBox } from './geo.ts';
 import type { Theme } from './theme.ts';
 
@@ -29,7 +30,7 @@ export interface Background {
 }
 
 export const bgFileName = (b: Background) => `bg${b.src.slice(b.src.lastIndexOf('.')).toLowerCase()}`;
-const isImage = (file: string) => /\.(png|jpe?g|webp)$/i.test(file);
+export const isImage = (file: string) => /\.(png|jpe?g|webp)$/i.test(file);
 
 export type GraphicSpec = { bg?: Background } & (
   | { template: 'counter'; kicker: string; to: number; from?: number; decimals?: number; unit: string; sub: string }
@@ -74,12 +75,12 @@ export const TEMPLATES = ['counter', 'bars', 'ring', 'map', 'text', 'layers', 's
  * mask, background, renderHtml) changes every template → bump every entry.
  */
 export const TEMPLATE_VERSIONS: Record<(typeof TEMPLATES)[number], number> = {
-  counter: 10, bars: 10, ring: 10, map: 10, text: 11, layers: 10, smile: 10, versus: 10,
-  chain: 10, geo: 10, chart: 10, chat: 10, montage: 10, duel: 10, links: 10,
+  counter: 11, bars: 11, ring: 11, map: 11, text: 12, layers: 11, smile: 11, versus: 11,
+  chain: 11, geo: 11, chart: 11, chat: 11, montage: 11, duel: 11, links: 11,
 };
 
-const MONTAGE_STEP = 0.6;
-const extOf = (file: string) => file.slice(file.lastIndexOf('.')).toLowerCase();
+export const MONTAGE_STEP = 0.6;
+export const extOf = (file: string) => file.slice(file.lastIndexOf('.')).toLowerCase();
 
 /** Project files a spec needs next to its index.html: `src` (project-relative) → file name in the scene dir. */
 export function specFiles(spec: GraphicSpec): { src: string; name: string }[] {
@@ -89,7 +90,7 @@ export function specFiles(spec: GraphicSpec): { src: string; name: string }[] {
 }
 
 /** Chat pacing shared by the page script and its typing SFX. */
-function chatTiming(spec: { prompt: string; reply: string }, seconds: number) {
+export function chatTiming(spec: { prompt: string; reply: string }, seconds: number) {
   const type = Math.min(1.3, Math.max(0.6, [...spec.prompt].length * 0.03));
   const typeAt = 0.5;
   const send = typeAt + type + 0.2;
@@ -99,18 +100,18 @@ function chatTiming(spec: { prompt: string; reply: string }, seconds: number) {
   return { typeAt, type, send, streamAt, stream, words };
 }
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const decimalsOf = (v: number) => (String(v).split('.')[1] ?? '').length;
+export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export const decimalsOf = (v: number) => (String(v).split('.')[1] ?? '').length;
 /** Vietnamese number format: 1.234,5 */
-const vn = (v: number, dec = decimalsOf(v)) => v.toLocaleString('vi-VN', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-const f2 = (n: number) => n.toFixed(2);
+export const vn = (v: number, dec = decimalsOf(v)) => v.toLocaleString('vi-VN', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+export const f2 = (n: number) => n.toFixed(2);
 /** `#rrggbb` + alpha → rgba() */
-const alpha = (hex: string, a: number) => {
+export const alpha = (hex: string, a: number) => {
   const h = hex.replace('#', '');
   return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},${a})`;
 };
 
-interface Parts {
+export interface Parts {
   body: string;
   css?: string;
   js: string[];
@@ -121,9 +122,9 @@ interface Parts {
 }
 
 /** Inline mask: the inner span rises out of it. Padding keeps stacked diacritics (Ấ, Ỗ) unclipped. */
-const mask = (id: string, html: string) => `<span class="m"><span id="${id}" class="mi">${html}</span></span>`;
-const rise = (sel: string, at: number, dur = 0.75) => `tl.fromTo("${sel}", { yPercent: 118 }, { yPercent: 0, duration: ${dur}, ease: "power4.out" }, ${f2(at)});`;
-const countTo = (id: string, from: number, to: number, dec: number, at: number, dur: number, ease = 'power2.out') =>
+export const mask = (id: string, html: string) => `<span class="m"><span id="${id}" class="mi">${html}</span></span>`;
+export const rise = (sel: string, at: number, dur = 0.75) => `tl.fromTo("${sel}", { yPercent: 118 }, { yPercent: 0, duration: ${dur}, ease: "power4.out" }, ${f2(at)});`;
+export const countTo = (id: string, from: number, to: number, dec: number, at: number, dur: number, ease = 'power2.out') =>
   `{ const o = { v: ${from} }; tl.fromTo(o, { v: ${from} }, { v: ${to}, duration: ${dur}, ease: "${ease}", onUpdate: () => { document.getElementById("${id}").textContent = fmt(o.v, ${dec}); } }, ${f2(at)}); }`;
 
 /**
@@ -132,7 +133,7 @@ const countTo = (id: string, from: number, to: number, dec: number, at: number, 
  * The column takes the width of the digit it settles on (hidden sizer), so faces without tabular
  * figures don't leave a gap after a narrow "1"; wider digits are clipped only while spinning.
  */
-function wheel(text: string, prefix: string) {
+export function wheel(text: string, prefix: string) {
   let n = 0;
   const html = [...text]
     .map((ch) => {
@@ -149,12 +150,12 @@ function wheel(text: string, prefix: string) {
 }
 
 /** Point on a cubic Bézier (used both here and, as the same formula, in the page script). */
-const cubic = (p: number[][], t: number) => {
+export const cubic = (p: number[][], t: number) => {
   const u = 1 - t;
   const w = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
   return [0, 1].map((k) => w.reduce((s, wi, i) => s + wi * p[i]![k]!, 0)) as [number, number];
 };
-const polyLength = (pt: (t: number) => [number, number], steps = 80) => {
+export const polyLength = (pt: (t: number) => [number, number], steps = 80) => {
   let len = 0;
   let prev = pt(0);
   for (let i = 1; i <= steps; i++) {
@@ -974,6 +975,8 @@ function baseCss(t: Theme): string {
   return `
 ${faces}
 *{box-sizing:border-box}
+/* Fixed frame so the page also plays outside HyperFrames (plain browser, preview); #root is 100% of it. */
+html,body{width:1920px;height:1080px;overflow:hidden;}
 body{margin:0;background:${c.bg};}
 #root{position:relative;width:100%;height:100%;overflow:hidden;background:${c.bg};color:${c.text};font-family:"${t.fonts.body}",sans-serif;-webkit-font-smoothing:antialiased;}
 #glow{position:absolute;width:1500px;height:1100px;border-radius:50%;background:radial-gradient(closest-side,${c.bgGlow} 0%,${alpha(c.bgGlow, 0.45)} 45%,${alpha(c.bgGlow, 0)} 100%);}
@@ -1024,9 +1027,12 @@ function background(b: Background, dur: string, t: Theme, layout: Parts['layout'
 }
 
 export function renderHtml(spec: GraphicSpec, seconds: number, theme: Theme): string {
-  const p = build(spec, theme, seconds);
+  const dossier = theme.style === 'dossier';
+  const d = dossier ? buildDossier(spec, theme, seconds) : undefined;
+  const p = d ?? build(spec, theme, seconds);
   const dur = seconds.toFixed(2);
-  const bg = spec.bg ? background(spec.bg, dur, theme, p.layout) : undefined;
+  // Dossier keeps the paper visible: footage is a print, or a photocopy for templates it doesn't lay out.
+  const bg = spec.bg ? (dossier ? dossierBackground(spec.bg, dur, d?.print ?? 'copy', p.focus) : background(spec.bg, dur, theme, p.layout)) : undefined;
   const [fx, fy] = p.focus;
   // Ambient life for the hold: slow camera push toward the focus, glow drifting across it.
   const ambient = [
@@ -1036,7 +1042,7 @@ export function renderHtml(spec: GraphicSpec, seconds: number, theme: Theme): st
   return `<!doctype html>
 <html lang="vi"><head><meta charset="UTF-8" /><meta name="viewport" content="width=1920, height=1080" />
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
-<style>${baseCss(theme)}${bg?.css ?? ''}${p.css ?? ''}</style></head>
+<style>${baseCss(theme)}${dossier ? dossierCss(theme) : ''}${bg?.css ?? ''}${p.css ?? ''}</style></head>
 <body><div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="${dur}">
 <div id="glow" style="left:${fx}px;top:${fy}px"></div><div id="grid"></div>${bg?.html ?? ''}
 <section id="scene" class="clip" data-start="0" data-duration="${dur}"><div id="world" style="transform-origin:${fx}px ${fy}px">${p.body}</div></section>

@@ -40,7 +40,16 @@ function captionCss(t: Theme): string {
   return `${faces}
 .cap{position:absolute;left:96px;bottom:92px;max-width:1300px;display:flex;flex-direction:column;gap:6px;padding:18px 30px 20px 30px;border-radius:12px;background:${c.panel};box-shadow:inset 6px 0 0 ${c.accent},0 18px 50px rgba(0,0,0,.45);opacity:0;}
 .cap b{font-family:"${t.fonts.display}";font-weight:${t.displayWeight};font-size:46px;line-height:1.12;color:${c.text};}
-.cap span{font-family:"${t.fonts.body}";font-weight:400;font-size:30px;line-height:1.3;color:${c.textSub};}`;
+.cap span{font-family:"${t.fonts.body}";font-weight:400;font-size:30px;line-height:1.3;color:${c.textSub};}${t.style === 'dossier' ? dossierCaptionCss(t) : ''}`;
+}
+
+/** Dossier: the fact label is a paper slip taped onto the footage, name in headline caps. */
+function dossierCaptionCss(t: Theme): string {
+  const c = t.colors;
+  return `
+.cap{border-radius:2px;background:#fdfcf6;padding:22px 34px 20px 30px;box-shadow:inset 10px 0 0 ${c.accent},0 14px 30px rgba(20,14,6,.45);transform:rotate(-1deg);}
+.cap::before{content:"";position:absolute;left:50%;top:-20px;width:150px;height:40px;margin-left:-75px;background:rgba(238,226,190,.82);box-shadow:0 1px 3px rgba(60,40,10,.22);transform:rotate(-3deg);clip-path:polygon(3% 0,97% 4%,100% 22%,97% 40%,100% 62%,97% 80%,99% 100%,2% 96%,0 78%,3% 58%,0 40%,3% 20%);}
+.cap b{text-transform:uppercase;letter-spacing:.01em;}`;
 }
 // Root duration sits 1ms under the frame boundary: HyperFrames rounds 77.367s (= 2321 frames) up to 2322.
 const snap = (t: number) => Math.round(t * FPS) / FPS;

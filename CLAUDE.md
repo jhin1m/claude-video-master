@@ -102,8 +102,12 @@ Trình tự làm việc đầy đủ: skill **`/video`** (`.claude/skills/video/
   tăng số của mẫu đó (sửa phần dùng chung thì tăng tất cả). `--jobs N` render N scene song song (mặc định 1), ghi manifest
   một lần cuối chapter.
   Theme ở `src/graphics/theme.ts`: mặc định `muc-ho-phach` (nền mực + hổ phách; tiêu đề + số Phudu, chữ thường Be Vietnam Pro — user chốt 2026-09-30);
-  `"theme": "classic"` trong `brief.json` để dùng giao diện cũ. Màu/font chỉ lấy từ token theme, không hardcode trong mẫu.
-  HTML tự phát khi mở ngoài HyperFrames (xem trước qua Artifact được).
+  `"theme": "classic"` trong `brief.json` để dùng giao diện cũ. `"theme": "ho-so"` = **Hồ sơ tư liệu** (thêm 2026-09-30):
+  bố cục + chuyển động riêng cho cả 15 mẫu ở `src/graphics/dossier.ts` (giấy ngà, nhãn Dymo, bút dạ quang, khoanh mực đỏ,
+  dấu mộc, chú thích gõ máy; font Anton / IBM Plex Mono / Patrick Hand). Footage `bg` thành ảnh in dán băng keo ("ảnh minh hoạ")
+  hoặc bản photocopy mờ thay vì nền mờ toàn khung (user đồng ý). Mốc thời gian có SFX giữ như mẫu gốc (`soundCues()` dùng chung).
+  Màu/font chỉ lấy từ token theme, không hardcode trong mẫu.
+  HTML tự phát khi mở ngoài HyperFrames (mở thẳng file trên trình duyệt, xem trước qua Artifact được).
   **Nền mặc định của đồ hoạ = footage Pexels** (user chốt 2026-09-30; trừ `geo`, `montage`): `cvm stock pick <sceneId> <id> --bg`.
   Mọi chữ có viền tối + bóng để không chìm vào footage. Ví dụ spec: `.claude/skills/video/references/visual-guide.md`.
 - Shell là zsh: biến chứa danh sách không tự tách từ — lặp bằng Python hoặc mảng, đừng dùng `for x in $list`.

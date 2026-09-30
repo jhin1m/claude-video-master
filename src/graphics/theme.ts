@@ -5,8 +5,13 @@
 export interface Theme {
   id: string;
   name: string;
-  /** CSS family names; every family used must have its weights in `fontFaces`. */
-  fonts: { display: string; body: string; numeric: string };
+  /**
+   * Layout/motion family. Omitted = the editorial templates in templates.ts; `dossier` = paper
+   * documentary look (dossier.ts) for the templates it covers, editorial layout for the rest.
+   */
+  style?: 'dossier';
+  /** CSS family names; every family used must have its weights in `fontFaces`. `hand` = handwriting (dossier). */
+  fonts: { display: string; body: string; numeric: string; hand?: string };
   /** Weight of headlines/big words (the face must be in `fontFaces`). */
   displayWeight: 700 | 800;
   fontFaces: { family: string; file: string; weight: 400 | 700 | 800 }[];
@@ -139,7 +144,63 @@ const MUC_HO_PHACH: Theme = {
   ease: 'power3.out',
 };
 
-export const THEMES: Record<string, Theme> = { [CLASSIC.id]: CLASSIC, [MUC_HO_PHACH.id]: MUC_HO_PHACH };
+const svgUrl = (svg: string) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+/** Paper: horizontal fibres (tiled), large soft blotches, burnt edges. Static, seeded. */
+const PAPER = [
+  svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='600' height='600'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.9 0.04' numOctaves='2' seed='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.36 0 0 0 0 0.27 0 0 0 0 0.14 0.55 0 0 0 -0.2'/></filter><rect width='600' height='600' filter='url(#f)'/></svg>`),
+  svgUrl(`<svg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080'><filter id='b'><feTurbulence type='fractalNoise' baseFrequency='0.005' numOctaves='3' seed='11'/><feColorMatrix values='0 0 0 0 0.42 0 0 0 0 0.3 0 0 0 0 0.12 0.42 0 0 0 -0.14'/></filter><rect width='1920' height='1080' filter='url(#b)'/></svg>`),
+  'radial-gradient(ellipse 118% 96% at 50% 46%,rgba(0,0,0,0) 56%,rgba(96,66,24,.32) 100%)',
+].join(',');
+
+/**
+ * Hồ sơ tư liệu: the frame is a sheet of aged paper. Footage becomes a taped photo print (or a faint
+ * photocopy), kickers are embossed label tape, numbers are headline type circled in red ink,
+ * key words get a highlighter pass, sources are typed out like a footnote.
+ */
+const HO_SO: Theme = {
+  id: 'ho-so',
+  name: 'Hồ sơ tư liệu',
+  style: 'dossier',
+  fonts: { display: 'Anton', body: 'IBM Plex Mono', numeric: 'Anton', hand: 'Patrick Hand' },
+  displayWeight: 800,
+  baseline: { numeric: 0.0764, display: 0.0764 },
+  grain: 0.09,
+  fontFaces: [
+    // Single-weight faces registered under both weights the shared CSS asks for.
+    { family: 'Anton', file: 'Anton-Regular.ttf', weight: 700 },
+    { family: 'Anton', file: 'Anton-Regular.ttf', weight: 800 },
+    { family: 'IBM Plex Mono', file: 'IBMPlexMono-Regular.ttf', weight: 400 },
+    { family: 'IBM Plex Mono', file: 'IBMPlexMono-SemiBold.ttf', weight: 700 },
+    { family: 'Patrick Hand', file: 'PatrickHand-Regular.ttf', weight: 400 },
+  ],
+  kicker: { uppercase: true, letterSpacingPx: 5 },
+  colors: {
+    bg: '#e8dfca',
+    bgGlow: '#f3ecdb',
+    texture: PAPER,
+    textureSize: '600px 600px,1920px 1080px,100% 100%',
+    text: '#1c1a16',
+    textSub: '#4a453b',
+    textLabel: '#6d6657',
+    accent: '#c0381f',
+    accentHi: '#f4cd2c',
+    onAccent: '#1c1a16',
+    secondary: '#24509c',
+    muted: '#b8ac93',
+    line: '#8b8170',
+    panel: 'rgba(248,244,234,.94)',
+    scrim: 'rgba(232,223,202,.45)',
+    glow: 'rgba(0,0,0,0)',
+    stroke: 'rgba(0,0,0,0)',
+    mapLand: '#d6cbb0',
+    mapLandDim: '#e0d7c2',
+    mapSea: '#efe8d7',
+    mapBorder: '#9a8f78',
+  },
+  ease: 'power3.out',
+};
+
+export const THEMES: Record<string, Theme> = { [CLASSIC.id]: CLASSIC, [MUC_HO_PHACH.id]: MUC_HO_PHACH, [HO_SO.id]: HO_SO };
 export const DEFAULT_THEME = MUC_HO_PHACH.id;
 
 export function getTheme(id: string = DEFAULT_THEME): Theme {
