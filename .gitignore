@@ -1,0 +1,14 @@
+.env
+.env.*
+node_modules/
+dist/
+.DS_Store
+# Dữ liệu project (audio, video, render — nặng, tái tạo được) và đầu ra thử
+projects/
+out/
+videos/
+# Skill bên thứ ba cài từ skills-lock.json (symlink vào .agents/)
+.agents/
+.zcode/
+.claude/skills/*
+!.claude/skills/video/

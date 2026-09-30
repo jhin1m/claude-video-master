@@ -1,0 +1,3359 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/audio/speech": {
+      "post": {
+        "description": "Drop-in for OpenAI `POST /v1/audio/speech`: point an OpenAI SDK at `https://api.vieneu.io/api/v1` with your VieNeu key and it works unchanged. Returns the audio bytes directly — mp3 by default, like OpenAI; `wav`, `opus` and `pcm` are also available via `response_format`. Set `stream_format` to `audio` or `sse` to receive audio as it is generated instead of waiting for the whole file — that requires `response_format: pcm` or `ulaw`, the only two encodings whose frames concatenate. Maps `input`→text, `voice`→VieNeu voice id (from GET /v1/audio/voices) and `model`→engine. Billed by the submitted character count (minimum 50, × the AI surcharge only if you opt in with `aiRefine: true`) and refunded if synthesis fails. Auth via `Authorization: Bearer <api key>`.",
+        "operationId": "createSpeech",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenAiSpeechRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The audio bytes. Content-Type follows `response_format` (mp3 by default). With `stream_format: \"sse\"` the body is instead a `text/event-stream` of base64 audio deltas; with `\"audio\"` it is the same bytes, chunked. For the headerless `pcm` and `ulaw` formats the sample rate is in `X-Sample-Rate` (`pcm` defaults to 24 kHz here, not the engine native rate).",
+            "content": {
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/ogg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/basic": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "OpenAI-shaped error: missing `input`, unknown voice, unsupported format.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "OpenAI-shaped error: API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "OpenAI-shaped error: the grant is out of tokens, has expired, or the plan does not allow the requested engine. A daily/weekly cap comes back as 429 instead.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "OpenAI-shaped error: rate limit or token quota. See `Retry-After`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "OpenAI-shaped error: no worker available for the requested engine or format. Retry shortly.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "OpenAI-compatible speech synthesis",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/audio/voices": {
+      "get": {
+        "description": "The companion to POST /v1/audio/speech. OpenAI has no such endpoint — its six voice names are a constant — but a VieNeu voice id is not guessable, so the OpenAI-compatible clients that support a custom base URL look for this route to populate their voice picker. Returns a bare `{ voices: [...] }` list of ids, which is the shape those clients expect. GET /v1/voices is the richer version (names, gender, region, your own cloned voices).",
+        "operationId": "listOpenAiVoices",
+        "parameters": [
+          {
+            "name": "engine",
+            "required": false,
+            "in": "query",
+            "description": "Return only the voices available on this engine.",
+            "schema": {
+              "enum": [
+                "v4"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bare voice ids, in the shape OpenAI-compatible clients expect.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicOpenAiVoiceListResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`engine` is not a known engine.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "List voice ids for the OpenAI-compatible endpoint",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/dialogue": {
+      "post": {
+        "description": "Synthesizes an ordered list of turns (1–50), each with its own voice and emotion, into a single concatenated WAV. Tokens are deducted upfront, billed by the submitted character count (minimum 50, × the AI surcharge only when you opt in with `aiRefine: true`), and refunded if synthesis fails. With `aiRefine: true` the dialogue is moderated and each turn is pronunciation-normalized (formulas, acronyms, mixed English), billed with the surcharge; by default (`false`) turns are synthesized as provided — no content check, no normalization, no surcharge. Pass `engine` to choose the TTS engine (each is billed at its own multiplier); omit it for the configured default, which GET /v1/engines reports as `isDefault`. Every turn’s voice must belong to the engine that runs. Returns a presigned `audioUrl`.",
+        "operationId": "createDialogue",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicDialogueRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The concatenated dialogue, as a presigned WAV URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicDialogueResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or over-long turn list, an unknown voice, or a voice from another engine.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Your plan does not include dialogue or this engine, or the grant is out of tokens / expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Content refused by moderation. Only reachable with `aiRefine: true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Synthesize a multi-speaker dialogue",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/dub": {
+      "post": {
+        "description": "Transcribes the uploaded Vietnamese audio (Whisper STT), then re-synthesizes it with the chosen preset voice. Tokens are billed by the OUTPUT audio duration (same rate as the app, × the engine multiplier), charged only on success. Max file size: 10 MB.",
+        "operationId": "createDub",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Vietnamese audio file plus the target voice.",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "audio",
+                  "voiceId"
+                ],
+                "properties": {
+                  "audio": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "voiceId": {
+                    "type": "string",
+                    "example": "Ngọc Lan"
+                  },
+                  "emotion": {
+                    "type": "string",
+                    "example": "natural"
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "example": 1
+                  },
+                  "engine": {
+                    "type": "string",
+                    "enum": [
+                      "v4"
+                    ],
+                    "example": "v4",
+                    "description": "TTS engine — each billed at its own multiplier. Omit it for the configured default, which GET /v1/engines reports as `isDefault`. The voice must belong to the engine that runs; the two catalogues share no ids."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The re-voiced audio plus the transcript it was built from.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicDubResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No audio sent, unsupported audio type, or an unknown voice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Your plan does not include dubbing or this engine, or the grant is out of tokens / expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Audio file larger than 10 MB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Dub a Vietnamese audio file with a new voice",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/emotion-tags": {
+      "get": {
+        "description": "Returns the reading styles for the `emotion` request field plus the inline cue tags you can embed directly inside the text. Pass `?engine=v4` (or omit it) to get what the engine can actually render: v4 has NO styles and only the three cues it can voice ([cười], [thở dài], [hắng giọng]) — it deletes any other tag from your text, and ignores `emotion` altogether. V3 (two styles, every cue) was retired on 2026-09-24. No authentication required.",
+        "operationId": "listEmotionTags",
+        "parameters": [
+          {
+            "name": "engine",
+            "required": false,
+            "in": "query",
+            "description": "Return the styles and cues THIS engine can render. Omit for the default engine.",
+            "schema": {
+              "enum": [
+                "v4"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Styles for the `emotion` field plus the inline cue tags.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicEmotionTagsResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          },
+          {}
+        ],
+        "summary": "List emotion styles and inline cue tags",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/engines": {
+      "get": {
+        "description": "The engine registry as it is configured right now: which engines are live, which one you get when you omit `engine`, and the BILLING MULTIPLIER applied to each. Until this endpoint existed the multipliers lived only in prose, so a caller sizing a budget had to trust a table that could go stale the moment pricing changed. `features` tells you what each engine may be asked to do — note that `stream` appears on v4 only, which is why every stream is charged at the v4 rate regardless of what you send. A second factor sits above all of them: `globalMultiplier`, a platform-wide lever. The charge for a request is `characters × engine multiplier × globalMultiplier`, so sizing a budget from the per-engine number alone understates it whenever the global lever is not 1. No authentication required.",
+        "operationId": "listEngines",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "One entry per enabled engine, in display order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "globalMultiplier": {
+                      "type": "number",
+                      "example": 1,
+                      "description": "Platform-wide multiplier applied on top of the engine multiplier — a traffic-control lever, normally 1. Multiply it in when converting a token allotment to characters, or the answer is short by exactly this factor."
+                    },
+                    "engines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "example": "v4"
+                          },
+                          "label": {
+                            "type": "string",
+                            "example": "V4 — Nhân bản (48kHz)"
+                          },
+                          "isDefault": {
+                            "type": "boolean",
+                            "description": "The engine used when a request omits `engine`."
+                          },
+                          "sampleRate": {
+                            "type": "integer",
+                            "example": 48000
+                          },
+                          "billingMultiplier": {
+                            "type": "number",
+                            "example": 3.4,
+                            "description": "Multiplies the per-character token charge. A request on an engine with multiplier 3.4 costs 3.4× the base rate, and a little over twice one with multiplier 1.5."
+                          },
+                          "features": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "example": [
+                              "generate",
+                              "clone",
+                              "dialogue",
+                              "stream",
+                              "dub",
+                              "srt"
+                            ],
+                            "description": "What this engine may be asked to do. `stream` is the one that decides whether POST /v1/tts/stream accepts it."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          },
+          {}
+        ],
+        "summary": "List engines, what each can do, and what each costs",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/srt": {
+      "post": {
+        "description": "Synthesizes each subtitle cue and places it at its start timecode (silence-padded; overruns shift later cues). Billed by total submitted cue-text characters (~1 token/char, minimum 50, × the AI surcharge only when you opt in with `aiRefine=true`) — NOT output duration. With `aiRefine=true` the subtitles are moderated and each cue is pronunciation-normalized; by default cues are synthesized as provided, with no content check and no surcharge. Pass `engine` to choose the TTS engine (each is billed at its own multiplier), or omit it for the configured default — GET /v1/engines reports it as `isDefault`. Tokens are deducted upfront and refunded if synthesis fails.",
+        "operationId": "createSrtDub",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "A .srt subtitle file plus the target voice.",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "voiceId"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "voiceId": {
+                    "type": "string",
+                    "example": "Ngọc Lan"
+                  },
+                  "emotion": {
+                    "type": "string",
+                    "example": "natural"
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "example": 1
+                  },
+                  "aiRefine": {
+                    "type": "boolean",
+                    "example": false,
+                    "default": false,
+                    "description": "AI text refinement across all cues (moderation + per-cue pronunciation normalization, billed with the AI surcharge). Defaults to FALSE: cues are synthesized as submitted, with no content check and no surcharge. Pass true to opt in — as a multipart field, the string \"true\" (or 1/on/yes); anything else, an empty field included, leaves the AI step off."
+                  },
+                  "engine": {
+                    "type": "string",
+                    "enum": [
+                      "v4"
+                    ],
+                    "example": "v4",
+                    "description": "TTS engine — each billed at its own multiplier. Omit it for the configured default, which GET /v1/engines reports as `isDefault`. The voice must belong to the engine that runs; the two catalogues share no ids."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The timecode-aligned track, plus per-cue placement showing where speed-fit or drift moved a cue.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSrtResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No file sent, an unparseable .srt, or an unknown voice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Your plan does not include SRT dubbing or this engine, or the grant is out of tokens / expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Subtitle file larger than 10 MB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Content refused by moderation. Only reachable with `aiRefine=true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Dub an .srt subtitle file into a timecode-aligned WAV",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/tts": {
+      "post": {
+        "description": "Submits a text-to-speech job. Returns immediately with a `jobId`. Poll `GET /v1/tts/{jobId}` — or `GET /v1/tts?ids=…` for several jobs at once — to check progress and retrieve the audio URL when complete. When identical audio already exists (same text, voice, speed, emotion and engine), the response is `status: \"completed\"` with `audioUrl` included — nothing to poll. Tokens are deducted on submission, billed by the submitted character count (minimum 50, × the AI surcharge only when you opt in with `aiRefine: true`), and refunded if the job permanently fails. Send an `Idempotency-Key` header whenever you might retry (timeouts, connection resets, a 502 from the edge): the same key with the same body returns the FIRST job instead of creating and charging a second one.",
+        "operationId": "createTtsJob",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Optional. A client-chosen key (8–128 printable ASCII characters — a UUID is ideal) that makes this call safe to retry. A second POST with the same key AND the same body returns the FIRST job (same `jobId`, no second charge) with the response header `Idempotent-Replayed: true`. Keys are scoped to your API key and remembered for 24 hours. Same key + different body → 422 `IDEMPOTENCY_KEY_REUSED`; same key while the first call is still running → 409 `IDEMPOTENCY_IN_FLIGHT` with `Retry-After` — retry with the SAME key, never a new one.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicTtsRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Job accepted: `queued` (poll GET /api/v1/tts/{jobId}) or, when the audio was already in the cache, `completed` with `audioUrl`. When the call replayed an earlier submit under the same `Idempotency-Key`, the body names the original job as `queued` and the response carries `Idempotent-Replayed: true`.",
+            "headers": {
+              "Idempotency-Key": {
+                "description": "Echo of the key you sent, on every keyed response.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` when this response replays an earlier submit under the same key.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicTtsSubmitResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown voice, voice belonging to another engine, or text too long.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Your plan does not include this engine or feature, or the grant is out of tokens / expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A request with this `Idempotency-Key` is still in flight (`IDEMPOTENCY_IN_FLIGHT`). Retry after `Retry-After` seconds with the SAME key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Content refused by moderation (only reachable with `aiRefine: true`), or `IDEMPOTENCY_KEY_REUSED`: this `Idempotency-Key` was already used with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Submit a TTS generation job",
+        "tags": [
+          "Public API v1"
+        ]
+      },
+      "get": {
+        "description": "Poll up to 50 jobs with ONE request instead of one connection per job. Each entry has exactly the shape of `GET /v1/tts/{jobId}`. Ids that are unknown or not yours are listed in `missing` — a batch is never rejected because of one bad id. Prefer this whenever you have more than one job in flight: it costs the server one database read for the whole batch, and the edge proxy caps concurrent connections per source address.",
+        "operationId": "getTtsJobs",
+        "parameters": [
+          {
+            "name": "ids",
+            "required": true,
+            "in": "query",
+            "description": "Comma-separated jobIds, 1–50.",
+            "schema": {
+              "example": "550e8400-e29b-41d4-a716-446655440000,6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Statuses in request order, plus the ids that could not be resolved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicTtsBatchStatusResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`ids` is missing, empty, or lists more than 50 ids.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Get the status of several jobs in one call",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/tts/{jobId}": {
+      "get": {
+        "description": "Poll this endpoint every 2–3 seconds until `status` is `completed` or `failed`. When `completed`, `audioUrl` contains a presigned S3 URL valid for 24 hours. With several jobs in flight, poll them together with `GET /v1/tts?ids=…` instead.",
+        "operationId": "getTtsJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current job state; `audioUrl` is present once `status` is `completed`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicTtsStatusResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No job with that id belongs to you. Jobs are scoped to the key’s owner — a valid key proves identity, not ownership of this job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Get job status and audio URL",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/tts/stream": {
+      "post": {
+        "description": "Streams audio as it is generated so playback can start within ~1–2s instead of waiting for the whole text. The response is a binary stream (Content-Type: application/octet-stream) of length-prefixed frames: repeat { read a 4-byte big-endian uint32 = N, then read N bytes = one audio frame } until EOF. A COMPLETE stream ends with a zero-length frame (N = 0) — if it is missing, the stream was cut short and you should discard the audio; it is not billed. Each frame is a self-contained WAV by default; pass `outputFormat` for raw headerless `pcm`/`ulaw` to feed a telephony or voice-agent pipeline, or mp3/opus to cut bandwidth. DECODE EACH FRAME SEPARATELY — frames are encoded independently, so concatenating mp3 or opus frames produces gaps and clicks; only pcm/ulaw can simply be joined. The actual sample rate is in X-Sample-Rate, the encoding in X-Output-Format, the framing in X-Stream-Format. PRICE: the same per-character rate as POST /v1/tts, but every stream runs on the v4 engine and is therefore charged at the v4 engine multiplier — higher than the v3 one. Sizing a budget with POST /v1/tts on v3 and then streaming the same text will cost more; GET /v1/engines returns the live multipliers. (+ the AI surcharge only if you opt in with `aiRefine: true`, which also moderates and normalizes the text first.) `voiceId` accepts a preset or one of your own cloned voices (`clone_…`, created in the web Studio at https://vieneu.io/#/clone) — a clone costs exactly what a preset costs on the engine you name; cloning adds no surcharge of its own. Note the engine you name is the engine that renders: a clone is NOT currently checked against the engine it was enrolled on. Clones have enrolled on v4 since 2026-08-28, so for those the two always agree; an older v3-enrolled clone named with v4 will render on v4 from a v3 reference clip and will not sound like the intended voice. Re-enrol it instead.",
+        "operationId": "streamSpeech",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicStreamRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A binary stream of length-prefixed frames: repeat { 4-byte big-endian uint32 N, then N bytes }. A COMPLETE stream ends with N = 0; without that marker the audio was cut short — discard it (it is not billed). `X-Sample-Rate`, `X-Output-Format` and `X-Stream-Format` describe the frames.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "X-Sample-Rate": {
+                "description": "Sample rate of the audio, in Hz. The ACTUAL rate produced.",
+                "schema": {
+                  "type": "integer",
+                  "example": 48000
+                }
+              },
+              "X-Output-Format": {
+                "description": "Encoding of each frame: wav, mp3, opus, pcm or ulaw.",
+                "schema": {
+                  "type": "string",
+                  "example": "wav"
+                }
+              },
+              "X-Stream-Format": {
+                "description": "`len32-wav-chunks` when each frame is a self-contained WAV, `len32-frames` for raw codec bytes.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "len32-wav-chunks",
+                    "len32-frames"
+                  ]
+                }
+              },
+              "X-Stream-Heartbeat": {
+                "description": "Present only when this stream may insert HEARTBEAT frames — a valid WAV carrying zero samples, sent at most this many seconds apart to keep the connection alive while nothing new has been synthesized. Skip those frames: they are not audio. Absent means none will be sent (raw codec streams never carry them).",
+                "schema": {
+                  "type": "integer",
+                  "example": 10
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown voice, a `clone_…` voice that is not yours (or whose reference is gone), or a format/sample-rate pair that cannot be honoured (`opus` is always 48000, `ulaw` always 8000). Unlike /v1/audio/speech`s `stream_format`, every `outputFormat` is accepted here — the framing is what keeps mp3/opus usable, one frame at a time.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Your plan does not include this engine or feature, or the grant is out of tokens / expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every worker for this engine failed. The charge is refunded automatically. Distinct from 503: a 503 means the fleet is alive but out of streaming capacity (see the STREAM_BUSY code) and retrying — or the queued POST /v1/tts path — will work.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No worker available for the requested engine or format. Retry shortly.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Stream speech synthesis with low latency",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/usage": {
+      "get": {
+        "description": "Totals by outcome, tokens, characters, seconds of audio and generation time, broken down per day, per route, per voice and per error code — from the per-call ledger every `/v1` call is recorded in. `POST /v1/tts` rows start `queued` and close as `ok`/`error` when the job finishes; `cache_hit` is a request served from the content cache. `tokenCost` is what was deducted before the call ran. Calls refused by the rate limiter never reach the ledger. Window capped at 92 days; default the last 30.",
+        "operationId": "getUsage",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "ISO date; default 30 days before `to`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "ISO date; default now. Window capped at 92 days.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "description": "`key` (default): the calling key only. `account`: every key on the account.",
+            "schema": {
+              "enum": [
+                "key",
+                "account"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The summary for the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUsageResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unparseable date, or a scope other than key/account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Usage of this key (or the whole account) over a window",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/vapi/speech": {
+      "post": {
+        "description": "Point a Vapi assistant's `custom-voice` provider at this URL to give it a Vietnamese voice. Vapi POSTs `{message: {type: \"voice-request\", text, sampleRate}}` and expects raw mono 16-bit little-endian PCM at exactly that rate — which is what this returns, streamed as it is generated. Authenticate by putting your VieNeu API key in the assistant's `server.secret`; Vapi sends it as `X-VAPI-SECRET`. Choose the voice with `?voiceId=` on the URL (and `?engine=` for v4), since Vapi's payload has no field for it. AI refinement is never applied here: an agent needs the reply to start, not an extra model round-trip. Billed per submitted character like the rest of /v1, and refunded if the audio is cut short.",
+        "operationId": "vapiSpeech",
+        "parameters": [
+          {
+            "name": "voiceId",
+            "required": false,
+            "in": "query",
+            "description": "Preset voice id; omit for the engine default.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "engine",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "v4"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VapiVoiceRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Raw mono 16-bit little-endian PCM at exactly the `sampleRate` Vapi asked for, streamed as it is generated. Headerless — the rate is the one you sent.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload is not a `voice-request` message, `text` is empty, or `sampleRate` is not one Vapi and the worker share.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The grant is out of tokens or expired, or the plan does not allow the requested engine. A daily/weekly cap comes back as 429 instead.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No worker answered within the deadline. Vapi’s `fallbackPlan` should handle this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          },
+          {
+            "vapiSecret": []
+          }
+        ],
+        "summary": "Vapi custom-voice webhook (raw PCM for voice agents)",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/voices": {
+      "get": {
+        "description": "Returns the voices an administrator has activated in the catalog (`kind:\"catalog\"`). Authentication is optional: when you send your API key, the response ALSO includes your own saved cloned voices (`kind:\"cloned\"`, ids like `clone_…`) — create them in the web Studio at https://vieneu.io/#/clone (cloning is not available through the API), then pass the id as `voiceId` to POST /v1/tts or POST /v1/tts/stream. Each voice carries the `engine` it renders on — a voice is only usable on that engine, cloned voices included (a clone is enrolled for one engine at creation). Pass `?engine=v4` to list one engine only; omitting it lists every engine the server renders on. V3 was retired on 2026-09-24: its voices are no longer listed and `?engine=v3` is a 400.",
+        "operationId": "listVoices",
+        "parameters": [
+          {
+            "name": "engine",
+            "required": false,
+            "in": "query",
+            "description": "Return only the voices available on this engine.",
+            "schema": {
+              "enum": [
+                "v4"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The catalogue, plus your own cloned voices when an API key is sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicVoiceListResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`engine` is not a known engine.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API key missing, malformed, or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or token quota exceeded. When the limit came from the application the response carries `Retry-After` (seconds) and the `X-RateLimit-*` headers and is counted against your API key; a 429 with none of those headers came from the edge proxy and is counted against your source address, shared with every other key calling from it. Back off on either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          },
+          {}
+        ],
+        "summary": "List available voices",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/webhooks": {
+      "post": {
+        "description": "Registers an HTTPS destination that receives an event when an async job reaches a terminal state, so you can stop polling `GET /v1/tts/{jobId}`.\n\nThe response contains the signing **secret exactly once** — store it now, it cannot be retrieved again. Use it to verify the `Vieneu-Signature` header on every event (see the Webhooks guide).\n\nThe URL must be `https` and must resolve to a public address. Private, loopback, link-local, CGNAT and reserved ranges are refused here **and** again at the moment of each delivery, so a hostname that is re-pointed at an internal address after registration still fails.",
+        "operationId": "createWebhookEndpoint",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookEndpointDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Endpoint registered. `secret` is present only in this response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpointCreatedDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Destination is not an https URL, points at a non-public address, or the account already has the maximum number of endpoints.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Register a webhook endpoint",
+        "tags": [
+          "Public API v1"
+        ]
+      },
+      "get": {
+        "description": "The signing secret is never returned here — only `secretPrefix`, which is enough to tell two secrets apart. Rotate the secret if you have lost it.",
+        "operationId": "listWebhookEndpoints",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Every webhook endpoint on the account, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookEndpointResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "List your webhook endpoints",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/webhooks/{endpointId}": {
+      "get": {
+        "operationId": "getWebhookEndpoint",
+        "parameters": [
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The endpoint. Never includes the signing secret.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpointResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such endpoint on this account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Get one webhook endpoint",
+        "tags": [
+          "Public API v1"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteWebhookEndpoint",
+        "parameters": [
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted. No further events are sent to this destination.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookDeletedResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such endpoint on this account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Delete a webhook endpoint",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/webhooks/{endpointId}/deliveries": {
+      "get": {
+        "description": "Self-diagnosis for a receiver that is not getting events. `status: DEAD` means we gave up and will not send that event again — fetch the result with `GET /v1/tts/{jobId}` instead.\n\nWe never record or return your endpoint's response body; `lastError` is a short code and `lastStatusCode` is the HTTP status we saw.",
+        "operationId": "listWebhookDeliveries",
+        "parameters": [
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The most recent delivery attempts, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookDeliveryResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such endpoint on this account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Recent delivery attempts for an endpoint",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    },
+    "/api/v1/webhooks/{endpointId}/rotate-secret": {
+      "post": {
+        "description": "Issues a new signing secret and returns it **once**. The previous secret keeps verifying for 24 hours, and during that window every event carries one `v1=` signature per live secret — so you can deploy the new secret without dropping events signed with the old one.",
+        "operationId": "rotateWebhookSecret",
+        "parameters": [
+          {
+            "name": "endpointId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rotated. `secret` is the new secret, shown only here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpointCreatedDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such endpoint on this account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyHeader": []
+          },
+          {
+            "apiKeyBearer": []
+          }
+        ],
+        "summary": "Rotate the signing secret",
+        "tags": [
+          "Public API v1"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "VieNeu API",
+    "description": "## Vietnamese text-to-speech over HTTPS\n\nThis document covers the **public integration surface** only — everything under\n`/api/v1`. The application's own endpoints (dashboard, billing,\nadministration) are not part of the published contract and are deliberately absent.\n\n**Quick start:**\n1. Get an API key at https://vieneu.io/#/developer — sign in, open the Developer page,\n   and create one there. Live keys begin `vn_sk_`; test keys begin `vn_test_` and cap\n   each request at 100 words. Everything else about the two is identical.\n2. Send it as `Authorization: Bearer <key>` or `X-API-Key: <key>`.\n3. Call `POST /api/v1/audio/speech` for audio bytes in the response, or\n   `POST /api/v1/tts` + `GET /api/v1/tts/{jobId}` for long text.\n\n**Billing** is per submitted character (minimum 50), refunded automatically when a\nrequest fails to produce audio. `aiRefine` is off by default here and carries a\nsurcharge when enabled.\n\n**Rate limits** are applied in two places. The application counts them per API key\nand answers with `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`\nand, on a 429, `Retry-After`. In front of it the edge proxy also caps requests and\nconcurrent connections **per source address**, shared by every key behind that\naddress; when that cap trips the 429 (or 503) carries none of those headers. So back\noff on any 429, and do not assume a bare one means your own key is over its limit.\n\nQuote the `X-Request-Id` of a failing call in any support request.",
+    "version": "1.0",
+    "contact": {
+      "name": "VieNeu",
+      "url": "https://vieneu.io/#/developer",
+      "email": "sonduong@vieneu.io"
+    }
+  },
+  "tags": [
+    {
+      "name": "Public API v1",
+      "description": "Synthesis, voices and voice cloning over HTTPS. Authenticated with an API key."
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vieneu.io",
+      "description": "Production"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKeyBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "VieNeu API key",
+        "description": "Your VieNeu API key, sent as `Authorization: Bearer vn_sk_…`. This is an API key, not a JWT — do not call /api/auth/login for it."
+      },
+      "apiKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Your VieNeu API key, sent as `X-API-Key: vn_sk_…`. Equivalent to the Authorization header — send one or the other, not both."
+      },
+      "vapiSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-VAPI-SECRET",
+        "description": "Vapi's own header. A Vapi assistant cannot set Authorization or X-API-Key, so put your VieNeu API key in the assistant's `server.secret` and Vapi forwards it here. Declared on POST /api/v1/vapi/speech, the only route a Vapi assistant calls."
+      }
+    },
+    "schemas": {
+      "CreateWebhookEndpointDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "https://api.example.com/hooks/vieneu",
+            "description": "HTTPS destination. Must resolve to a public address — private, loopback, link-local, CGNAT and reserved ranges are refused, both when you register the endpoint and again on every delivery attempt."
+          },
+          "description": {
+            "type": "string",
+            "example": "Production receiver",
+            "description": "Your own label. Shown back to you; never sent to the receiver."
+          },
+          "events": {
+            "type": "array",
+            "example": [
+              "tts.job.completed",
+              "tts.job.failed"
+            ],
+            "description": "Event types to receive. Defaults to all of them.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "tts.job.completed",
+                "tts.job.failed"
+              ]
+            }
+          },
+          "apiKeyId": {
+            "type": "string",
+            "example": "665f1a2b3c4d5e6f7a8b9c0d",
+            "description": "Restrict this endpoint to jobs submitted with ONE of your API keys. Omit to receive events for every key on the account. Use it to keep a test key's traffic off your production receiver."
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "OpenAiErrorBodyDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Missing required parameter: 'input'."
+          },
+          "type": {
+            "type": "string",
+            "example": "invalid_request_error"
+          },
+          "param": {
+            "type": "string",
+            "example": "input",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "example": null,
+            "nullable": true
+          }
+        },
+        "required": [
+          "message",
+          "type"
+        ]
+      },
+      "OpenAiErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/OpenAiErrorBodyDto"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "OpenAiSpeechRequestDto": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "example": "tts-1",
+            "description": "Selects the engine. OpenAI model names (`tts-1`, `tts-1-hd`, `gpt-4o-mini-tts`) map to the default engine so an unmodified OpenAI client works; `vieneu-v4` selects the engine explicitly (`vieneu-v3` is refused with 400 since V3 was retired on 2026-09-24). Any other value is accepted and ignored, as this endpoint has always done. A `vieneu-…` name for an engine that does not exist IS rejected — that is a choice of engine, and rendering on a different one would bill at a rate you did not pick. `engine` wins if both are sent."
+          },
+          "input": {
+            "type": "string",
+            "example": "Xin chào, đây là VieNeu.",
+            "description": "The text to synthesize (OpenAI: `input`). Required."
+          },
+          "voice": {
+            "type": "string",
+            "example": "Ngọc Lan",
+            "description": "VieNeu voice id from GET /v1/voices (e.g. \"Ngọc Lan\"). Omit to use the default voice. (OpenAI voice names like \"alloy\" are not mapped — pass a VieNeu voice id.)"
+          },
+          "response_format": {
+            "type": "string",
+            "example": "mp3",
+            "enum": [
+              "wav",
+              "mp3",
+              "opus",
+              "pcm",
+              "ulaw"
+            ],
+            "default": "mp3",
+            "description": "Output format. Defaults to `mp3`, as OpenAI does — a client that omits the field expects mp3, and returning WAV to it produced a file its player refused. `wav`, `opus`, `pcm` and `ulaw` are also supported; `pcm` is raw headerless signed 16-bit little-endian at 24 kHz — the rate OpenAI documents, and what this route defaults to unless `sample_rate` says otherwise — and `ulaw` is raw 8 kHz G.711 for telephony. OpenAI's `aac` and `flac` are not supported and return 400."
+          },
+          "sample_rate": {
+            "type": "number",
+            "example": 24000,
+            "enum": [
+              8000,
+              16000,
+              22050,
+              24000,
+              44100,
+              48000
+            ],
+            "description": "VieNeu extension: output sample rate in Hz. Omit for 48000 — except with `pcm`, which defaults to 24000 (the rate OpenAI documents, since an OpenAI client has no field to ask for another and headerless PCM at the wrong rate plays at the wrong speed), and `ulaw`, which is always 8000."
+          },
+          "speed": {
+            "type": "number",
+            "example": 1,
+            "minimum": 0.25,
+            "maximum": 4,
+            "default": 1,
+            "description": "Playback rate, applied by a pitch-preserving time-stretch. OpenAI accepts 0.25–4.0 and so does this endpoint, but VieNeu's engine only holds quality across 0.5–2.0, so values outside that are CLAMPED, not rejected — a 400 for a value OpenAI itself considers valid would break the drop-in promise. The native /v1 endpoints validate 0.5–2.0 strictly instead."
+          },
+          "instructions": {
+            "type": "string",
+            "example": "Speak in a calm tone.",
+            "description": "Accepted and ignored. It exists because `gpt-4o-mini-tts` — one of the model names this endpoint accepts — is the model whose whole point is this parameter, and the global validation pipe rejects unknown fields. Sending it must not 400; VieNeu conveys style through `emotion` and inline cues."
+          },
+          "stream_format": {
+            "type": "string",
+            "example": "audio",
+            "enum": [
+              "audio",
+              "sse"
+            ],
+            "description": "Stream the response instead of buffering the whole file. `audio` sends the encoded bytes as they are produced (chunked transfer). `sse` sends OpenAI-shaped Server-Sent Events: `speech.audio.delta` carrying base64 audio, then a final `speech.audio.done`. That final event is the only positive proof the stream finished — without it, treat the audio as truncated. ONLY valid with `response_format: pcm` or `ulaw`: streamed frames are encoded independently, so mp3/opus/wav cannot be concatenated into one playable file and are rejected with 400. Note `response_format` defaults to mp3, so streaming requires setting it explicitly."
+          },
+          "emotion": {
+            "type": "string",
+            "example": "natural",
+            "description": "VieNeu extension: speaking style — 'natural' or 'storytelling'."
+          },
+          "aiRefine": {
+            "type": "boolean",
+            "example": false,
+            "default": false,
+            "description": "VieNeu extension — AI text refinement. Defaults to FALSE on the public API: the text is synthesized as submitted, with no AI moderation and no pronunciation normalization, billed at the plain per-character rate. Set true to run the same AI step the web app uses — formulas, acronyms and mixed-in English are read correctly and the content is checked — billed with the AI surcharge and one extra model round-trip of latency. Deterministic text preparation is applied either way."
+          },
+          "engine": {
+            "type": "string",
+            "example": "v4",
+            "enum": [
+              "v4"
+            ],
+            "description": "VieNeu extension: TTS engine — \"v4\" (48 kHz), billed at its own multiplier. \"v3\" was retired on 2026-09-24 and is refused. Omit for the configured default; GET /v1/engines reports which one that is (`isDefault`)."
+          }
+        },
+        "required": [
+          "input"
+        ]
+      },
+      "PublicApiErrorDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 403,
+            "description": "HTTP status code, repeated in the body. Always present. It used to be absent from any rejection that carried a `code`; it no longer is. The status line still holds the authoritative copy — this one is a convenience for clients that only keep the parsed body."
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "example": "Insufficient tokens. You have 120 tokens remaining but this request costs 450 tokens.",
+            "description": "What went wrong, in prose. A validation failure (ValidationPipe) returns an ARRAY of messages here instead of a string, one per rejected field — handle both."
+          },
+          "code": {
+            "type": "string",
+            "example": "GRANT_DAILY_LIMIT",
+            "description": "Machine-readable reason, on the rejections that carry one — and some carry none, so handle its absence: a grant that is not ACTIVE is refused with a bare 403 whose body has no `code` at all. Branch on this rather than on `message`. Quota, on the six routes that bill a grant and answer in THIS shape (POST /v1/tts, /v1/tts/stream, /v1/dialogue, /v1/dub, /v1/srt, /v1/vapi/speech — POST /v1/audio/speech is billed too but answers OpenAI’s envelope with OpenAI’s own `type` values): `GRANT_EXPIRED` (403, no `required`), `GRANT_TOKENS_EXHAUSTED` (403, with `remaining` + `required`), `GRANT_DAILY_LIMIT` and `GRANT_WEEKLY_LIMIT` (429, with `resetAt` + `remaining` + `required`), `CONCURRENT_CONFLICT` (429, transient and carrying no numbers but `retryAfterSeconds: 1` / `Retry-After: 1` — the server already retried several times, so wait that second before you do). `FREE_DAILY_LIMIT` belongs to the in-app free tier and cannot occur here: an API key always bills a grant. Capacity: `QUEUE_FULL` and `USER_QUEUE_FULL` (429, POST /v1/tts, with `retryAfterSeconds`; nothing was charged), `STREAM_CONCURRENCY` (429, too many live streams on one key). Idempotency (POST /v1/tts with an `Idempotency-Key`): `IDEMPOTENCY_KEY_INVALID` (400), `IDEMPOTENCY_IN_FLIGHT` (409, with `retryAfterSeconds` — retry with the SAME key), `IDEMPOTENCY_KEY_REUSED` (422). Cloning: `CLONE_WEB_ONLY` (410) is the only clone code an API key can still meet. Creating a cloned voice moved to the web Studio (https://vieneu.io/#/clone), so the enrolment routes answer that code instead of running — nothing is billed. Voices you cloned there keep working here: they are listed by GET /v1/voices when you send your key and their `clone_…` id is a normal `voiceId` on POST /v1/tts and /v1/tts/stream. A clone that is missing or not yours fails generation with a plain message and no `code`. Treat an unknown value as a plain failure: the list grows."
+          },
+          "error": {
+            "type": "string",
+            "example": "Forbidden",
+            "description": "Nest’s status name, present only where the rejection was raised as one of Nest’s own exception classes. It is NARROWER than `statusCode`: the common `{ statusCode, message, traceId }` form a raw HttpException produces carries no `error` at all. Never parse it — it is the status word, not a reason."
+          },
+          "retryAfterSeconds": {
+            "type": "number",
+            "example": 15,
+            "description": "Seconds to wait before retrying, on the rejections that recover by themselves: `QUEUE_FULL` / `USER_QUEUE_FULL` (15), `CONCURRENT_CONFLICT` (1) and `IDEMPOTENCY_IN_FLIGHT` (409, 1). Also sent as the standard `Retry-After` header, which is the copy a generic HTTP client should honour."
+          },
+          "resetAt": {
+            "type": "string",
+            "example": "2026-09-08T00:00:00.000Z",
+            "description": "ISO 8601 time the exhausted window rolls over, on the two rejections that recover on their own: `GRANT_DAILY_LIMIT` and `GRANT_WEEKLY_LIMIT`. Sleep until this rather than parsing the timestamp out of `message` — and rather than telling the user to upgrade for something that resets in an hour."
+          },
+          "remaining": {
+            "type": "number",
+            "example": 0,
+            "description": "Tokens still available under the limit that rejected the request — the window’s headroom for `GRANT_DAILY_LIMIT` / `GRANT_WEEKLY_LIMIT`, the grant’s balance for `GRANT_TOKENS_EXHAUSTED`. Pair it with `required` to tell a user how short they are."
+          },
+          "required": {
+            "type": "number",
+            "example": 5000,
+            "description": "Tokens this request would have cost. It rides only the three rejections that actually weighed a price against a limit — `GRANT_TOKENS_EXHAUSTED`, `GRANT_DAILY_LIMIT` and `GRANT_WEEKLY_LIMIT` — and is ABSENT from the refusals that never got as far as pricing: `GRANT_EXPIRED`, `CONCURRENT_CONFLICT`, an inactive grant’s uncoded 403, and the capacity 429s (`QUEUE_FULL`, `STREAM_CONCURRENCY`). POST /v1/voices is the exception — every fee rejection there carries it, because the amount is the flat enrolment fee and is known before the grant is consulted at all."
+          },
+          "traceId": {
+            "type": "string",
+            "example": "0f7c1a2b-3c4d-5e6f-7a8b-9c0d1e2f3a4b",
+            "description": "Correlation id, also returned as the `X-Request-Id` response header. Quote it in a support request — it is the id our logs are keyed by."
+          }
+        },
+        "description": "The error body every /v1 route answers with (the OpenAI-compatible routes use their own envelope). It has ONE shape: `{ statusCode, message, traceId }`, plus `code` and its extras (`resetAt`, `remaining`, `required`, `retryAfterSeconds`) on the rejections that carry one, plus `error` where the rejection came from one of Nest’s own exception classes. `statusCode` always repeats the HTTP status; the status line remains the authoritative copy. Branch on `code` rather than on `message`, which gets reworded and is Vietnamese on a few paths, and treat an unknown `code` as a plain failure — the list grows.",
+        "required": [
+          "message"
+        ]
+      },
+      "PublicDialogueRequestDto": {
+        "type": "object",
+        "properties": {
+          "turns": {
+            "description": "Ordered list of dialogue turns (1–50).",
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicDialogueTurnDto"
+            }
+          },
+          "pauseBetweenTurnsMs": {
+            "type": "number",
+            "example": 500,
+            "description": "Silence gap between turns (ms, 0–5000).",
+            "default": 500
+          },
+          "temperature": {
+            "type": "number",
+            "example": 1,
+            "description": "Sampling temperature applied to all turns (0.0–2.0).",
+            "default": 1
+          },
+          "aiRefine": {
+            "type": "boolean",
+            "example": false,
+            "default": false,
+            "description": "AI text refinement. Defaults to FALSE on the public API: the text is synthesized as submitted, with no AI moderation and no pronunciation normalization, billed at the plain per-character rate. Set true to run the same AI step the web app uses — formulas, acronyms and mixed-in English are read correctly and the content is checked — billed with the AI surcharge and one extra model round-trip of latency. Deterministic text preparation is applied either way. Applies across every turn."
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "v4"
+            ],
+            "example": "v4",
+            "description": "TTS engine — each is billed at its own multiplier. Every turn's voice must belong to this engine (see GET /v1/voices?engine=…). Omit to use the configured default; GET /v1/engines names it as `isDefault` and lists the live multipliers."
+          }
+        },
+        "required": [
+          "turns"
+        ]
+      },
+      "PublicDialogueResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "turnsCount": {
+            "type": "number",
+            "example": 4,
+            "description": "Number of turns synthesized."
+          },
+          "speakers": {
+            "example": [
+              "Host",
+              "Guest"
+            ],
+            "description": "Unique speaker labels in order of first appearance.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "audioUrl": {
+            "type": "string",
+            "example": "https://s3.amazonaws.com/bucket/dialogue/job.wav?X-Amz-Expires=3600&...",
+            "description": "Presigned S3 download URL for the concatenated WAV."
+          },
+          "audioUrlExpiresIn": {
+            "type": "number",
+            "example": 3600,
+            "description": "Seconds until audioUrl expires."
+          },
+          "duration": {
+            "type": "number",
+            "example": 12.4,
+            "description": "Duration of the concatenated audio (seconds)."
+          },
+          "tokenCost": {
+            "type": "number",
+            "example": 120,
+            "description": "Tokens deducted for this request."
+          }
+        },
+        "required": [
+          "success",
+          "turnsCount",
+          "speakers",
+          "audioUrl",
+          "audioUrlExpiresIn",
+          "duration",
+          "tokenCost"
+        ]
+      },
+      "PublicDialogueTurnDto": {
+        "type": "object",
+        "properties": {
+          "speaker": {
+            "type": "string",
+            "example": "Host",
+            "description": "Speaker label (display/metadata only)."
+          },
+          "voiceId": {
+            "type": "string",
+            "example": "Ngọc Lan",
+            "description": "Preset voice ID from GET /v1/voices."
+          },
+          "text": {
+            "type": "string",
+            "example": "Xin chào, hôm nay bạn thế nào?",
+            "description": "Vietnamese text for this turn (max 5000 chars).",
+            "maxLength": 5000
+          },
+          "emotion": {
+            "type": "string",
+            "example": "natural",
+            "enum": [
+              "natural",
+              "storytelling",
+              "tin_tuc",
+              "tu_nhien",
+              "doc_truyen",
+              "emotion_0",
+              "emotion_1",
+              "emotion_2",
+              "emotion_3",
+              "emotion_4",
+              "emotion_5",
+              "emotion_6",
+              "emotion_7",
+              "emotion_8",
+              "emotion_9",
+              "emotion_10",
+              "emotion_11",
+              "emotion_12",
+              "emotion_13",
+              "emotion_14",
+              "emotion_15",
+              "emotion_16",
+              "emotion_17",
+              "emotion_18",
+              "emotion_19"
+            ],
+            "default": "natural"
+          }
+        },
+        "required": [
+          "speaker",
+          "voiceId",
+          "text"
+        ]
+      },
+      "PublicDubResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "transcript": {
+            "type": "string",
+            "example": "Xin chào, đây là nội dung được phiên âm.",
+            "description": "Vietnamese text transcribed from the uploaded audio."
+          },
+          "voiceUsed": {
+            "type": "string",
+            "example": "Tuyen",
+            "description": "Voice the audio was re-synthesized with."
+          },
+          "audioUrl": {
+            "type": "string",
+            "example": "https://s3.amazonaws.com/bucket/dub/job.wav?X-Amz-Expires=3600&...",
+            "description": "Presigned S3 download URL for the dubbed WAV."
+          },
+          "audioUrlExpiresIn": {
+            "type": "number",
+            "example": 3600,
+            "description": "Seconds until audioUrl expires."
+          },
+          "duration": {
+            "type": "number",
+            "example": 5.2,
+            "description": "Duration of the dubbed audio (seconds)."
+          },
+          "tokenCost": {
+            "type": "number",
+            "example": 80,
+            "description": "Tokens deducted (computed from the transcript)."
+          }
+        },
+        "required": [
+          "success",
+          "transcript",
+          "voiceUsed",
+          "audioUrl",
+          "audioUrlExpiresIn",
+          "duration",
+          "tokenCost"
+        ]
+      },
+      "PublicEmotionCueDto": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string",
+            "example": "[cười]",
+            "description": "Inline cue, embedded directly in the text you submit."
+          },
+          "label": {
+            "type": "string",
+            "example": "Cười"
+          },
+          "description": {
+            "type": "string",
+            "example": "Tiếng cười ngắn."
+          },
+          "aliases": {
+            "example": [
+              "[laugh]"
+            ],
+            "description": "Alternative spellings accepted for the same cue.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "tag"
+        ]
+      },
+      "PublicEmotionStyleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "natural",
+            "description": "Value for the `emotion` request field."
+          },
+          "label": {
+            "type": "string",
+            "example": "Tự nhiên",
+            "description": "Human-readable label (Vietnamese)."
+          },
+          "description": {
+            "type": "string",
+            "example": "Giọng hội thoại thường ngày (mặc định)."
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      },
+      "PublicEmotionTagsResponseDto": {
+        "type": "object",
+        "properties": {
+          "engine": {
+            "type": "string",
+            "example": "v4",
+            "enum": [
+              "v4"
+            ],
+            "nullable": true,
+            "description": "The engine these styles and cues apply to; null when none was requested."
+          },
+          "styles": {
+            "description": "Reading styles for the `emotion` field. Empty on engines that have none.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicEmotionStyleDto"
+            }
+          },
+          "tags": {
+            "description": "Inline cue tags this engine can voice. Any other tag is deleted from your text.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicEmotionCueDto"
+            }
+          },
+          "count": {
+            "type": "number",
+            "example": 3,
+            "description": "Number of cues in `tags`."
+          }
+        },
+        "required": [
+          "styles",
+          "tags",
+          "count"
+        ]
+      },
+      "PublicOpenAiVoiceListResponseDto": {
+        "type": "object",
+        "properties": {
+          "voices": {
+            "example": [
+              "Ngọc Lan",
+              "Trúc Ly"
+            ],
+            "description": "Bare voice ids, the shape OpenAI-compatible clients expect.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "voices"
+        ]
+      },
+      "PublicSrtPlacementDto": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "number",
+            "example": 7,
+            "description": "1-based cue index."
+          },
+          "scheduledStartMs": {
+            "type": "number",
+            "example": 12000,
+            "description": "Start time from the subtitle (ms)."
+          },
+          "actualStartMs": {
+            "type": "number",
+            "example": 12180,
+            "description": "Start time after timeline assembly (ms)."
+          },
+          "windowMs": {
+            "type": "number",
+            "example": 2000,
+            "description": "Subtitle window length, end − start (ms)."
+          },
+          "durationMs": {
+            "type": "number",
+            "example": 2400,
+            "description": "Synthesized cue length after speed-fit (ms)."
+          },
+          "speed": {
+            "type": "number",
+            "example": 1.2,
+            "description": "Tempo multiplier applied (1.0 = none)."
+          },
+          "overflowed": {
+            "type": "boolean",
+            "example": true,
+            "description": "True if the cue was pushed later than its start (drift)."
+          }
+        },
+        "required": [
+          "index",
+          "scheduledStartMs",
+          "actualStartMs",
+          "windowMs",
+          "durationMs",
+          "speed",
+          "overflowed"
+        ]
+      },
+      "PublicSrtResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "cuesCount": {
+            "type": "number",
+            "example": 42,
+            "description": "Number of subtitle cues synthesized."
+          },
+          "audioUrl": {
+            "type": "string",
+            "example": "https://s3.amazonaws.com/bucket/srt/job.wav?X-Amz-Expires=86400&...",
+            "description": "Presigned S3 download URL for the timecode-aligned WAV."
+          },
+          "audioUrlExpiresIn": {
+            "type": "number",
+            "example": 86400,
+            "description": "Seconds until audioUrl expires."
+          },
+          "duration": {
+            "type": "number",
+            "example": 128.4,
+            "description": "Total duration of the dubbed track (seconds)."
+          },
+          "sampleRate": {
+            "type": "number",
+            "example": 48000,
+            "description": "Output sample rate."
+          },
+          "tokenCost": {
+            "type": "number",
+            "example": 1875,
+            "description": "Tokens deducted (computed from total cue text)."
+          },
+          "placements": {
+            "description": "Per-cue timeline placement (speed-fit + drift). May be empty — treat it as diagnostic detail, not as part of the result.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicSrtPlacementDto"
+            }
+          }
+        },
+        "required": [
+          "success",
+          "cuesCount",
+          "audioUrl",
+          "audioUrlExpiresIn",
+          "duration",
+          "sampleRate",
+          "tokenCost",
+          "placements"
+        ]
+      },
+      "PublicStreamRequestDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "example": "Xin chào Việt Nam!",
+            "description": "Vietnamese text to synthesize and stream.",
+            "maxLength": 50000
+          },
+          "voiceId": {
+            "type": "string",
+            "example": "Ngọc Lan",
+            "description": "Voice ID from GET /v1/voices: a preset, or one of your own cloned voices (`clone_…`, created in the web Studio at https://vieneu.io/#/clone — an admin-published clone works too). A voice is only usable on the engine it belongs to. Omit to use the default voice."
+          },
+          "emotion": {
+            "type": "string",
+            "example": "natural",
+            "enum": [
+              "natural",
+              "storytelling",
+              "tin_tuc",
+              "tu_nhien",
+              "doc_truyen",
+              "emotion_0",
+              "emotion_1",
+              "emotion_2",
+              "emotion_3",
+              "emotion_4",
+              "emotion_5",
+              "emotion_6",
+              "emotion_7",
+              "emotion_8",
+              "emotion_9",
+              "emotion_10",
+              "emotion_11",
+              "emotion_12",
+              "emotion_13",
+              "emotion_14",
+              "emotion_15",
+              "emotion_16",
+              "emotion_17",
+              "emotion_18",
+              "emotion_19"
+            ],
+            "default": "natural"
+          },
+          "speed": {
+            "type": "number",
+            "example": 1,
+            "description": "Playback speed (0.5–2.0).",
+            "minimum": 0.5,
+            "maximum": 2,
+            "default": 1
+          },
+          "engine": {
+            "type": "string",
+            "example": "v4",
+            "enum": [
+              "v4"
+            ],
+            "description": "Streaming runs on v4, the default and only engine. You may omit this. GET /v1/engines returns the live billing multiplier."
+          },
+          "aiRefine": {
+            "type": "boolean",
+            "example": false,
+            "default": false,
+            "description": "AI text refinement. Defaults to FALSE on the public API: the text is synthesized as submitted, with no AI moderation and no pronunciation normalization, billed at the plain per-character rate. Set true to run the same AI step the web app uses — formulas, acronyms and mixed-in English are read correctly and the content is checked — billed with the AI surcharge and one extra model round-trip of latency. Deterministic text preparation is applied either way."
+          },
+          "outputFormat": {
+            "type": "string",
+            "example": "wav",
+            "enum": [
+              "wav",
+              "mp3",
+              "opus",
+              "pcm",
+              "ulaw"
+            ],
+            "default": "wav",
+            "description": "Encoding of the audio inside each frame. `wav` (default) keeps every frame self-contained and is what existing clients expect. `mp3` and `opus` cut bandwidth roughly six-fold. `pcm` and `ulaw` are HEADERLESS raw audio for telephony and voice-agent pipelines — read the rate from the X-Sample-Rate response header. The frame FRAMING is unchanged in every case, so the end-of-stream marker still means the same thing."
+          },
+          "sampleRate": {
+            "type": "number",
+            "example": 24000,
+            "enum": [
+              8000,
+              16000,
+              22050,
+              24000,
+              44100,
+              48000
+            ],
+            "description": "Output sample rate in Hz. Omit for the engine native rate (48000). `opus` is always 48000 and `ulaw` always 8000 — passing a conflicting value is rejected rather than quietly ignored."
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "PublicTtsBatchStatusResponseDto": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "description": "One entry per id that belongs to you, in the order you asked for them. Each has exactly the shape of GET /v1/tts/{jobId}.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicTtsStatusResponseDto"
+            }
+          },
+          "missing": {
+            "example": [
+              "0f7c1a2b-0000-4000-8000-000000000000"
+            ],
+            "description": "Ids that were not found — unknown, malformed, or belonging to another account (indistinguishable on purpose).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "jobs",
+          "missing"
+        ]
+      },
+      "PublicTtsRequestDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "example": "Xin chào Việt Nam!",
+            "description": "Vietnamese text to synthesize.",
+            "maxLength": 50000
+          },
+          "voiceId": {
+            "type": "string",
+            "example": "Trúc Ly",
+            "description": "Voice ID — must be one returned by GET /v1/voices for the requested engine. Omit to use that engine's default voice."
+          },
+          "emotion": {
+            "type": "string",
+            "example": "natural",
+            "enum": [
+              "natural",
+              "storytelling",
+              "tin_tuc",
+              "tu_nhien",
+              "doc_truyen",
+              "emotion_0",
+              "emotion_1",
+              "emotion_2",
+              "emotion_3",
+              "emotion_4",
+              "emotion_5",
+              "emotion_6",
+              "emotion_7",
+              "emotion_8",
+              "emotion_9",
+              "emotion_10",
+              "emotion_11",
+              "emotion_12",
+              "emotion_13",
+              "emotion_14",
+              "emotion_15",
+              "emotion_16",
+              "emotion_17",
+              "emotion_18",
+              "emotion_19"
+            ],
+            "default": "natural"
+          },
+          "speed": {
+            "type": "number",
+            "example": 1,
+            "default": 1,
+            "minimum": 0.5,
+            "maximum": 2,
+            "description": "Playback rate of the synthesized speech. 1.0 is the natural pace."
+          },
+          "engine": {
+            "type": "string",
+            "example": "v4",
+            "enum": [
+              "v4"
+            ],
+            "description": "TTS engine. Only \"v4\" (48 kHz, reference-based voices) is served: \"v3\" was retired on 2026-09-24 and a request naming it is refused with 400. Omit it to use the configured default — GET /v1/engines reports the live answer as `isDefault`, next to each engine’s billing multiplier. The voice must belong to the engine you pick (GET /v1/voices?engine=…); V3 voice ids do not exist on V4."
+          },
+          "aiRefine": {
+            "type": "boolean",
+            "example": false,
+            "default": false,
+            "description": "AI text refinement. Defaults to FALSE on the public API: the text is synthesized as submitted, with no AI moderation and no pronunciation normalization, billed at the plain per-character rate. Set true to run the same AI step the web app uses — formulas, acronyms and mixed-in English are read correctly and the content is checked — billed with the AI surcharge and one extra model round-trip of latency. Deterministic text preparation is applied either way."
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "PublicTtsStatusResponseDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "status": {
+            "type": "string",
+            "example": "completed",
+            "enum": [
+              "queued",
+              "processing",
+              "completed",
+              "failed"
+            ]
+          },
+          "audioUrl": {
+            "type": "string",
+            "example": "https://s3.amazonaws.com/bucket/tts/job.wav?X-Amz-Expires=86400&...",
+            "description": "Presigned S3 download URL. Only present when status=completed. Valid for 24 hours."
+          },
+          "audioUrlExpiresIn": {
+            "type": "number",
+            "example": 86400,
+            "description": "Seconds until audioUrl expires."
+          },
+          "duration": {
+            "type": "number",
+            "example": 3.42
+          },
+          "voiceId": {
+            "type": "string",
+            "example": "Tuyen"
+          },
+          "textLength": {
+            "type": "number",
+            "example": 150
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-05-17T10:00:00Z"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-05-17T10:00:08Z"
+          },
+          "queuePosition": {
+            "type": "number",
+            "example": 2,
+            "description": "Position in queue (only when status=queued)."
+          },
+          "estimatedWaitSeconds": {
+            "type": "number",
+            "example": 8,
+            "description": "Estimated seconds until processing starts (only when status=queued)."
+          },
+          "error": {
+            "type": "string",
+            "example": "Generation failed after retries."
+          }
+        },
+        "required": [
+          "jobId",
+          "status"
+        ]
+      },
+      "PublicTtsSubmitResponseDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "status": {
+            "type": "string",
+            "example": "queued",
+            "enum": [
+              "queued",
+              "completed"
+            ],
+            "description": "`queued` — poll `GET /v1/tts/{jobId}` for the result. `completed` — the audio already existed (same text, voice, speed, emotion and engine as an earlier request, by anyone) and `audioUrl` is in this response: nothing to poll."
+          },
+          "message": {
+            "type": "string",
+            "example": "Job queued. Poll GET /v1/tts/{jobId} for status and audio URL."
+          },
+          "audioUrl": {
+            "type": "string",
+            "example": "https://s3.amazonaws.com/bucket/tts/job.wav?X-Amz-Expires=86400&...",
+            "description": "Presigned download URL, only when `status` is `completed`. Valid for 24 hours — the same URL the poll would return."
+          },
+          "audioUrlExpiresIn": {
+            "type": "number",
+            "example": 86400,
+            "description": "Seconds until audioUrl expires. Only with `status: completed`."
+          },
+          "duration": {
+            "type": "number",
+            "example": 3.42,
+            "description": "Audio length in seconds. Only with `status: completed`."
+          }
+        },
+        "required": [
+          "jobId",
+          "status",
+          "message"
+        ]
+      },
+      "PublicUsageResponseDto": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "key",
+              "account"
+            ],
+            "example": "key"
+          },
+          "apiKeyId": {
+            "type": "string",
+            "example": "6a9c6359b5ea49e3ae862c1c",
+            "nullable": true,
+            "description": "The key summarised (`scope=key`)."
+          },
+          "userId": {
+            "type": "string",
+            "example": "6a9c3db7b5ea49e3ae862a86",
+            "nullable": true,
+            "description": "The account summarised (`scope=account`)."
+          },
+          "from": {
+            "type": "string",
+            "example": "2026-08-14T00:00:00.000Z"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-09-13T00:00:00.000Z"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/UsageTotalsDto"
+          },
+          "byDay": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageByDayDto"
+            }
+          },
+          "byRoute": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageByRouteDto"
+            }
+          },
+          "byVoice": {
+            "description": "Top 100 by request count.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageByVoiceDto"
+            }
+          },
+          "byErrorCode": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageByErrorCodeDto"
+            }
+          }
+        },
+        "required": [
+          "scope",
+          "from",
+          "to",
+          "totals",
+          "byDay",
+          "byRoute",
+          "byVoice",
+          "byErrorCode"
+        ]
+      },
+      "PublicVoiceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "Ngọc Lan",
+            "description": "Voice id — pass this as `voiceId` (or `voice` on the OpenAI-compatible route). Cloned voices you created look like `clone_9f1c2d34-…`."
+          },
+          "description": {
+            "type": "string",
+            "example": "Giọng nữ miền Nam, ấm và rõ."
+          },
+          "name": {
+            "type": "string",
+            "example": "Ngọc Lan",
+            "description": "Display name."
+          },
+          "gender": {
+            "type": "string",
+            "example": "female",
+            "nullable": true,
+            "description": "Speaker gender. Explicitly null when the catalogue does not record one."
+          },
+          "region": {
+            "type": "string",
+            "example": "south",
+            "nullable": true,
+            "description": "Regional accent. Explicitly null when the catalogue does not record one."
+          },
+          "engine": {
+            "type": "string",
+            "example": "v4",
+            "enum": [
+              "v4"
+            ],
+            "description": "The engine this voice renders on. A voice is usable on that engine ONLY — passing it with a different `engine` is rejected, not substituted."
+          },
+          "kind": {
+            "type": "string",
+            "example": "catalog",
+            "enum": [
+              "catalog",
+              "cloned"
+            ],
+            "description": "`catalog` for a voice VieNeu publishes; `cloned` for one you created in the web Studio (https://vieneu.io/#/clone). Cloned voices are only listed when you send your API key."
+          }
+        },
+        "required": [
+          "id",
+          "engine",
+          "kind"
+        ]
+      },
+      "PublicVoiceListResponseDto": {
+        "type": "object",
+        "properties": {
+          "voices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicVoiceDto"
+            }
+          },
+          "count": {
+            "type": "number",
+            "example": 42,
+            "description": "Number of voices in `voices`."
+          },
+          "error": {
+            "type": "string",
+            "example": "Could not fetch voices",
+            "description": "Present only when the catalogue could not be read. The response is still 200 with an empty list — treat a non-empty `error` as \"retry\", not as \"no voices\"."
+          }
+        },
+        "required": [
+          "voices",
+          "count"
+        ]
+      },
+      "UsageByDayDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "example": "2026-09-10"
+          },
+          "requests": {
+            "type": "number",
+            "example": 120
+          },
+          "ok": {
+            "type": "number",
+            "example": 118
+          },
+          "denied": {
+            "type": "number",
+            "example": 1
+          },
+          "error": {
+            "type": "number",
+            "example": 1
+          },
+          "tokenCost": {
+            "type": "number",
+            "example": 9000
+          },
+          "characters": {
+            "type": "number",
+            "example": 6000
+          },
+          "audioSeconds": {
+            "type": "number",
+            "example": 480.2
+          },
+          "avgGenMs": {
+            "type": "number",
+            "example": 2100,
+            "nullable": true
+          }
+        },
+        "required": [
+          "day",
+          "requests",
+          "ok",
+          "denied",
+          "error",
+          "tokenCost",
+          "characters",
+          "audioSeconds"
+        ]
+      },
+      "UsageByErrorCodeDto": {
+        "type": "object",
+        "properties": {
+          "errorCode": {
+            "type": "string",
+            "example": "synthesis_timeout",
+            "description": "Same vocabulary as the webhook `error.code`; 4xx refusals appear as `http_<status>`."
+          },
+          "statusCode": {
+            "type": "number",
+            "example": 500
+          },
+          "count": {
+            "type": "number",
+            "example": 2
+          },
+          "lastAt": {
+            "type": "string",
+            "example": "2026-09-10T01:02:03.000Z"
+          }
+        },
+        "required": [
+          "errorCode",
+          "statusCode",
+          "count",
+          "lastAt"
+        ]
+      },
+      "UsageByRouteDto": {
+        "type": "object",
+        "properties": {
+          "route": {
+            "type": "string",
+            "example": "clone",
+            "description": "Logical route: `tts`, `tts_stream`, `audio_speech`, `vapi_speech`, `clone`, `dialogue`, `dub`, `srt`, `upload`, `prepare`, `voices_create`, `voices_delete`."
+          },
+          "requests": {
+            "type": "number",
+            "example": 782
+          },
+          "ok": {
+            "type": "number",
+            "example": 780
+          },
+          "denied": {
+            "type": "number",
+            "example": 1
+          },
+          "error": {
+            "type": "number",
+            "example": 1
+          },
+          "tokenCost": {
+            "type": "number",
+            "example": 58650
+          },
+          "avgGenMs": {
+            "type": "number",
+            "example": 2140,
+            "nullable": true
+          }
+        },
+        "required": [
+          "route",
+          "requests",
+          "ok",
+          "denied",
+          "error",
+          "tokenCost"
+        ]
+      },
+      "UsageByVoiceDto": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string",
+            "example": "Binh",
+            "description": "Voice id for catalogue/cloned voices; for one-shot cloning, the reference clip handle (basename of the uploaded file)."
+          },
+          "voiceName": {
+            "type": "string",
+            "example": "Thanh Bình",
+            "nullable": true
+          },
+          "engine": {
+            "type": "string",
+            "example": "v4",
+            "nullable": true
+          },
+          "requests": {
+            "type": "number",
+            "example": 300
+          },
+          "tokenCost": {
+            "type": "number",
+            "example": 22500
+          },
+          "audioSeconds": {
+            "type": "number",
+            "example": 1260.5
+          },
+          "avgGenMs": {
+            "type": "number",
+            "example": 1980,
+            "nullable": true
+          },
+          "errors": {
+            "type": "number",
+            "example": 0
+          }
+        },
+        "required": [
+          "voice",
+          "requests",
+          "tokenCost",
+          "audioSeconds",
+          "errors"
+        ]
+      },
+      "UsageTotalsDto": {
+        "type": "object",
+        "properties": {
+          "requests": {
+            "type": "number",
+            "example": 812,
+            "description": "Calls that reached a handler in the window (every outcome)."
+          },
+          "ok": {
+            "type": "number",
+            "example": 780,
+            "description": "Delivered audio (sync routes) or finished jobs (`POST /v1/tts`)."
+          },
+          "queued": {
+            "type": "number",
+            "example": 3,
+            "description": "`POST /v1/tts` jobs still in the queue at the time of the query."
+          },
+          "cacheHit": {
+            "type": "number",
+            "example": 12,
+            "description": "Served from the content cache — billed, no generation."
+          },
+          "denied": {
+            "type": "number",
+            "example": 15,
+            "description": "Refused with a 4xx (bad voice, quota, moderation…). Not billed."
+          },
+          "error": {
+            "type": "number",
+            "example": 2,
+            "description": "Failed with a 5xx or truncated mid-stream. Refunded."
+          },
+          "tokenCost": {
+            "type": "number",
+            "example": 61250,
+            "description": "Tokens deducted (before refunds — see `refunded` on events)."
+          },
+          "characters": {
+            "type": "number",
+            "example": 40810,
+            "description": "Characters submitted (the billed quantity)."
+          },
+          "audioSeconds": {
+            "type": "number",
+            "example": 3312.4,
+            "description": "Seconds of audio produced."
+          },
+          "avgGenMs": {
+            "type": "number",
+            "example": 2140,
+            "nullable": true,
+            "description": "Mean worker time per successful call, ms."
+          },
+          "p95GenMs": {
+            "type": "number",
+            "example": 5300,
+            "nullable": true,
+            "description": "95th percentile of the same, ms."
+          }
+        },
+        "required": [
+          "requests",
+          "ok",
+          "queued",
+          "cacheHit",
+          "denied",
+          "error",
+          "tokenCost",
+          "characters",
+          "audioSeconds"
+        ]
+      },
+      "VapiVoiceMessageDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "voice-request"
+          },
+          "text": {
+            "type": "string",
+            "example": "Xin chào, tôi có thể giúp gì cho bạn?"
+          },
+          "sampleRate": {
+            "type": "number",
+            "example": 24000,
+            "enum": [
+              8000,
+              16000,
+              22050,
+              24000
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "text",
+          "sampleRate"
+        ]
+      },
+      "VapiVoiceRequestDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/VapiVoiceMessageDto"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "WebhookDeletedResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "success"
+        ]
+      },
+      "WebhookDeliveryResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "665f1a2b3c4d5e6f7a8b9c0d"
+          },
+          "eventId": {
+            "type": "string",
+            "example": "evt_9f2c1e043b8a4d218f770c1a2b3c4d5e"
+          },
+          "eventType": {
+            "type": "string",
+            "example": "tts.job.completed"
+          },
+          "status": {
+            "type": "string",
+            "example": "DELIVERED",
+            "enum": [
+              "PENDING",
+              "DELIVERED",
+              "DEAD"
+            ],
+            "description": "DEAD means we gave up; the event will not be sent again."
+          },
+          "attempts": {
+            "type": "number",
+            "example": 2
+          },
+          "lastStatusCode": {
+            "type": "number",
+            "example": 200,
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "example": "http_500",
+            "nullable": true,
+            "description": "Short failure code. We never record or return your endpoint's response body."
+          },
+          "lastDurationMs": {
+            "type": "number",
+            "example": 143,
+            "nullable": true
+          },
+          "lastAttemptAt": {
+            "type": "string",
+            "example": "2026-09-01T10:00:02Z",
+            "format": "date-time",
+            "nullable": true
+          },
+          "deliveredAt": {
+            "type": "string",
+            "example": "2026-09-01T10:00:02Z",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-09-01T10:00:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "eventId",
+          "eventType",
+          "status",
+          "attempts",
+          "createdAt"
+        ]
+      },
+      "WebhookEndpointCreatedDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "665f1a2b3c4d5e6f7a8b9c0d"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://api.example.com/hooks/vieneu"
+          },
+          "description": {
+            "type": "string",
+            "example": "Production receiver"
+          },
+          "events": {
+            "example": [
+              "tts.job.completed",
+              "tts.job.failed"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "example": "ENABLED",
+            "enum": [
+              "ENABLED",
+              "DISABLED"
+            ]
+          },
+          "apiKeyId": {
+            "type": "string",
+            "example": "665f1a2b3c4d5e6f7a8b9c0d",
+            "description": "Null when the endpoint receives events for every key.",
+            "nullable": true
+          },
+          "secretPrefix": {
+            "type": "string",
+            "example": "whsec_a1b2c3",
+            "description": "First characters of the signing secret, so you can tell two secrets apart. The secret itself is returned ONCE, at creation and rotation."
+          },
+          "secretRotatedAt": {
+            "type": "string",
+            "example": "2026-09-01T10:00:00Z",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastDeliveryAt": {
+            "type": "string",
+            "example": "2026-09-01T10:00:00Z",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastDeadLetterAt": {
+            "type": "string",
+            "example": null,
+            "format": "date-time",
+            "nullable": true,
+            "description": "When an event to this endpoint last gave up permanently."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-09-01T10:00:00Z"
+          },
+          "secret": {
+            "type": "string",
+            "example": "whsec_0000000000000000000000000000000000000000000000000000000000000000",
+            "description": "Signing secret. Shown ONCE — store it now, it cannot be retrieved again. Use it to verify the Vieneu-Signature header on every event."
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "description",
+          "events",
+          "status",
+          "secretPrefix",
+          "createdAt",
+          "secret"
+        ]
+      },
+      "WebhookEndpointResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "665f1a2b3c4d5e6f7a8b9c0d"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://api.example.com/hooks/vieneu"
+          },
+          "description": {
+            "type": "string",
+            "example": "Production receiver"
+          },
+          "events": {
+            "example": [
+              "tts.job.completed",
+              "tts.job.failed"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "example": "ENABLED",
+            "enum": [
+              "ENABLED",
+              "DISABLED"
+            ]
+          },
+          "apiKeyId": {
+            "type": "string",
+            "example": "665f1a2b3c4d5e6f7a8b9c0d",
+            "description": "Null when the endpoint receives events for every key.",
+            "nullable": true
+          },
+          "secretPrefix": {
+            "type": "string",
+            "example": "whsec_a1b2c3",
+            "description": "First characters of the signing secret, so you can tell two secrets apart. The secret itself is returned ONCE, at creation and rotation."
+          },
+          "secretRotatedAt": {
+            "type": "string",
+            "example": "2026-09-01T10:00:00Z",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastDeliveryAt": {
+            "type": "string",
+            "example": "2026-09-01T10:00:00Z",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastDeadLetterAt": {
+            "type": "string",
+            "example": null,
+            "format": "date-time",
+            "nullable": true,
+            "description": "When an event to this endpoint last gave up permanently."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-09-01T10:00:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "description",
+          "events",
+          "status",
+          "secretPrefix",
+          "createdAt"
+        ]
+      }
+    }
+  }
+}

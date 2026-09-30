@@ -1,0 +1,3 @@
+#!/bin/sh
+# Wrapper: Node >= 22.18 chạy trực tiếp TypeScript (type stripping).
+exec node "$(dirname "$0")/src/cli.ts" "$@"
