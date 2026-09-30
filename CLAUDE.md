@@ -1,6 +1,7 @@
 # claude-video-master — pipeline ý tưởng → video tiếng Việt
 
-Trả lời user bằng tiếng Việt có dấu. Không log/in API key. Không commit/push. Hỏi trước khi đổi kiến trúc hoặc thêm dependency nặng.
+Trả lời user bằng tiếng Việt có dấu. Không log/in API key. Được commit/push (user cho phép 2026-09-30) lên repo **public**
+`github.com/jhin1m/claude-video-master` — trước mỗi lần push quét bí mật; không đưa `.env`, `projects/` lên. Hỏi trước khi đổi kiến trúc hoặc thêm dependency nặng.
 
 ## Kiến trúc (không đổi nếu chưa hỏi user)
 1. **Audio trước, hình sau** — duration thật của audio quyết định độ dài scene.
