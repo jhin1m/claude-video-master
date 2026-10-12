@@ -43,12 +43,24 @@ Mỗi lần render chỉ giữ **một bản** (file gốc `cvm` xuất ra); kh�
      (`./cvm graphics --chapter N --scene <id> --draft`), chụp frame **độ phân giải gốc** (`ffmpeg -ss <giây> -i visuals/chNN/sNNN.mp4 -frames:v 1`)
      rồi crop phóng to đúng chỗ chữ có dấu chồng (ễ ỗ ẫ ẵ ấ ể) và ô tô màu/pill — contact sheet thu nhỏ che mất lỗi dấu.
      Checklist ở mục "Soát trước khi render" trong `references/visual-guide.md`. Qua cổng rồi mới `./cvm graphics --chapter N --jobs 2`.
-   - `animation`/`text_card`: viết `visual.spec` → `./cvm graphics --chapter N [--jobs N]` (`--draft` khi thử).
+   - `animation`/`text_card`: viết `visual.spec` → `./cvm graphics --chapter N [--jobs N]` (`--draft` khi thử). Ngoài mẫu số liệu
+     còn các mẫu kể chuyện: `rank` (top N), `timeline`, `steps` (quy trình), `quote`, `headline` (mẩu báo), `docmark` (soi tài liệu
+     thật, máy quay đẩy vào dòng được đánh dấu), `profile` (nhân vật) — ví dụ spec ở `references/visual-guide.md`.
    - `archive` (hiện vật, bản thảo, tranh khắc, chân dung, ảnh lịch sử có thật): `./cvm archive search <id> "<query>"` → chọn
      ảnh đúng hiện vật/người → `./cvm archive pick <id> <pageid>` (`--fit cover` nếu muốn cắt đầy khung) → xem `visuals/chNN/sNNN.jpg`.
      Rồi ghi `visual.caption {title, detail}` — chú thích dữ kiện trên hình (tên + năm sinh–mất / năm + nơi, "bản dựng lại" nếu có);
      `cvm render` từ chối ảnh tư liệu chưa có caption.
      Không tìm thấy tư liệu thật thì đổi sang đồ hoạ/stock — không để AI vẽ giả tư liệu.
+   - `archive` **dạng phim** (thước phim thời sự, phim chính phủ Mỹ, phim quảng cáo/giáo dục cũ, Apollo/NASA) — Internet Archive:
+     `./cvm ia search <id> "<query tiếng Anh>"` (`--type image` cho ảnh NASA) → `./cvm ia pick <id> <identifier>` (cắt đúng đoạn
+     từ server, không tải cả phim; `--start s` chọn đoạn) → xem `visuals/chNN/sNNN.jpg`, có ⚠ khung đen thì pick lại `--start` khác.
+     Chỉ collection danh sách trắng + giấy phép PD/CC0/CC BY/BY-SA; phim < 720p bị loại — **chỉ** thêm `--min-height 480` khi user
+     đã đồng ý dùng phim SD cho video đó (phần lớn phim tư liệu trước 1970 là 480p 4:3; dựng trên nền mờ, không cắt).
+     Vẫn bắt buộc `visual.caption` (sự kiện + năm + nguồn, vd. "Bản tin Universal · 6/6/1944").
+   - **Thứ tự ưu tiên nguồn**: footage chung chung hiện đại → Pexels; ảnh tư liệu (bản thảo, tranh khắc, chân dung, mọi nước)
+     → Wikimedia Commons; **phim** tư liệu 1920–1967 / Mỹ / NASA → Internet Archive; số liệu, quy trình, mốc thời gian →
+     đồ hoạ; AI chỉ sau cùng. Ảnh tĩnh ưu tiên Commons (giấy phép + tác giả rõ, độ phân giải cao); Internet Archive chỉ thay
+     khi Commons không có (ảnh NASA). Không dùng Internet Archive cho chủ đề hiện đại Pexels/Commons đã có.
    - `stock`: `./cvm stock search <id> "<query>"` → chọn clip → `./cvm stock pick <id> <pexelsId>`; ghép frame `visuals/chNN/sNNN.jpg` thành contact sheet và **xem bằng mắt** (logo, sai ngữ cảnh, khung trống) → thay clip lỗi.
    - `ai_image`/`ai_video`: **phương án cuối** — chỉ khi Pexels + Commons + đồ hoạ đều không có hình hợp (ghi query đã thử vào `intent`). Higgsfield MCP theo trần trong CLAUDE.md → tải về `visuals/chNN/` → `./cvm asset set <id> <path>`. Không có tool Higgsfield → không dùng AI, dựng bằng stock/archive/đồ hoạ.
    - Nền đồ hoạ mặc định là footage Pexels: `./cvm stock pick <sceneId> <id> --bg` (trừ `geo`, `montage`).
@@ -86,9 +98,11 @@ Thay stage 0–2; từ TTS trở đi như thường.
   đụng một scene (vd. `stock pick --bg` và `graphics` cùng scene).
 - **Job nền**: dừng bằng **TaskStop** (id của task). `pkill` tiến trình con không dừng vòng lặp cha (Python/zsh) — job tưởng
   đã chết vẫn chạy tiếp. Dừng xong kiểm `ps aux | grep -E "cvm|hyperframes"`.
+- **Internet Archive**: mọi request (tìm, metadata, cắt phim) qua `cvm ia …` — một hàng đợi chung, giãn ≥ 2 s; server quá tải
+  (502/`BACKEND_ERROR`) thì `cvm` tự thử lại 3 lần rồi báo "đang quá tải" — chờ vài phút, không vòng lặp tự viết.
 - **Wikimedia**: gọi API tìm kiếm thoải mái; **tải ảnh** chỉ qua `cvm archive fetch|pick` (một luồng, giãn 5–8 s, bộ đếm chung mọi
   tiến trình ở `projects/.throttle/`), không tự viết vòng lặp curl/tải song song. Gặp 429: `cvm` tự dừng và chờ `Retry-After`
   (≤ 15 phút, quá thì báo lỗi) — không retry dồn; báo lỗi thì chờ hết hạn rồi chạy lại đúng lệnh đó.
 
 ## Báo cáo cuối
-Thời lượng, số scene theo loại, token VieNeu đã dùng, số ảnh tư liệu theo giấy phép, credit Higgsfield đã dùng, các quyết định tự đưa ra (fallback, sửa lời), số liệu còn đáng ngờ, việc còn chờ user.
+Thời lượng, số scene theo loại, token VieNeu đã dùng, số ảnh/phim tư liệu theo nguồn + giấy phép, credit Higgsfield đã dùng, các quyết định tự đưa ra (fallback, sửa lời), số liệu còn đáng ngờ, việc còn chờ user.

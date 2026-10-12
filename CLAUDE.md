@@ -87,10 +87,20 @@ Trình tự làm việc đầy đủ: skill **`/video`** (`.claude/skills/video/
   Ghi vào manifest `visual.caption: { "title": "…", "detail": "…" }` → `cvm render` vẽ thành dải chữ góc dưới trái
   (font/màu theo theme, hiện 0,5s sau đầu scene, tắt trước khi chuyển cảnh). Scene `archive` thiếu caption thì
   `cvm render` từ chối, `cvm status` báo. Scene khác cũng dùng được caption khi cần. Dữ kiện phải có nguồn trong `script.md`.
-  `cvm final` xuất thêm `credits.txt` (mọi nguồn Pexels + Commons) để dán vào mô tả video — CC BY/BY-SA bắt buộc ghi.
+  `cvm final` xuất thêm `credits.txt` (mọi nguồn Pexels + Commons + Internet Archive) để dán vào mô tả video — CC BY/BY-SA bắt buộc ghi.
+- Phim/ảnh tư liệu **Internet Archive** (thêm 2026-10-13): `cvm ia search <sceneId> "<query>" [--type video|image] [--collection id]`
+  → `ia/<sceneId>.json`; `cvm ia pick <sceneId> <identifier> [--start s] [--file f] [--fit] [--bg] | --batch` cắt đúng đoạn cần
+  từ server bằng HTTP range (không tải cả phim), dựng 1920×1080 (phim 4:3 đặt trọn trên nền mờ), giữ dư 1 s hai đầu cho chuyển
+  cảnh, báo ⚠ khung đen. **Chắt lọc**: chỉ collection danh sách trắng `universal_newsreels`, `FedFlix`, `prelinger`, `wwIIarchive`,
+  `nasa` (lý do + nguồn: `plans/reports/researcher-261013-internet-archive-report.md`); loại item nằm cả trong bộ upload cộng đồng
+  (`opensource_movies`, `community`…), giấy phép NC/ND, `rights` có "fair use"/"all rights reserved", mô tả nhắc Getty; ba
+  collection đầu + `wwIIarchive` bắt buộc item có `licenseurl` PD/CC. Phim < 720p bị loại (quy tắc user); `--min-height 480`
+  chỉ dùng khi user đồng ý dùng phim SD cho video đó. Request qua hàng đợi chung `projects/.throttle/archive.org.json` (giãn ≥ 2 s),
+  502/`BACKEND_ERROR` tự thử lại 3 lần. Scene dùng Internet Archive vẫn là `archive` → bắt buộc caption. Dùng cho phim tư liệu
+  1920–1967, Mỹ, NASA; ảnh tĩnh vẫn ưu tiên Commons; không dùng cho chủ đề hiện đại.
 - Render (`src/compose.ts`): mỗi chapter là một composition HyperFrames ở `projects/<slug>/compose/chNN/`
   (asset hard-link, không copy): scene đặt theo mốc tuyệt đối của lời đọc, chuyển cảnh chồng 0,4s (mỗi clip dư
-  0,2s hai đầu; stock lấy dư từ file gốc qua `visual.clip`, đồ hoạ render dư đuôi 0,5s), Ken Burns cho stock/ảnh,
+  0,2s hai đầu; stock và phim Internet Archive lấy dư từ file gốc qua `visual.clip`, đồ hoạ render dư đuôi 0,5s), Ken Burns cho stock/ảnh,
   SFX (whoosh khi đổi đồ hoạ ↔ footage; tick/pop do mẫu đồ hoạ khai báo qua `soundCues()`; file ở `templates/sfx/`).
   Giọng đọc không bị dời. Audio đã trộn được giải mã ra `renders/chNN.wav` cắt đúng mốc frame; `final` ghép từ WAV
   (không nối thẳng AAC). Render mất khoảng 1,5–2 phút mỗi chapter (tuần tự).
@@ -98,12 +108,14 @@ Trình tự làm việc đầy đủ: skill **`/video`** (`.claude/skills/video/
   thật N=2 vs 3 trên máy 8 CPU/16 GB — mỗi render HyperFrames đã tự dùng nhiều worker Chrome). Render chỉ đọc manifest.
 - Đồ hoạ (animation/text_card): khai báo `visual.spec` trong manifest → `cvm graphics --chapter N [--scene id] [--draft]`
   sinh `projects/<slug>/graphics/<sceneId>/index.html` từ `src/graphics/templates.ts` (counter, bars, ring, map, text,
-  layers, smile, versus, chain, geo = bản đồ thật 63 tỉnh VN + mọi nước, chart, chat = ô chat gõ chữ/chữ chảy ra, montage = chuỗi ảnh cắt nhanh kèm mốc năm, duel = hai đường đua trên trục năm (phe thắng/thua), links = các từ trong câu nối nhau bằng cung sáng; mọi mẫu nhận `bg` footage/ảnh làm nền), render HyperFrames và gắn asset; cache theo hash(spec + slot + theme + `TEMPLATE_VERSIONS[template]`) — sửa mẫu nào thì
+  layers, smile, versus, chain, geo = bản đồ thật 63 tỉnh VN + mọi nước, chart, chat = ô chat gõ chữ/chữ chảy ra, montage = chuỗi ảnh cắt nhanh kèm mốc năm, duel = hai đường đua trên trục năm (phe thắng/thua), links = các từ trong câu nối nhau bằng cung sáng;
+  mẫu kể chuyện ở `src/graphics/story.ts` + `dossier-story.ts` (thêm 2026-10-13): rank = top N đếm ngược, timeline, steps = quy trình, quote, headline = mẩu báo có thật,
+  docmark = tài liệu thật + máy quay đẩy vào chỗ đánh dấu, profile = thẻ nhân vật; mọi mẫu nhận `bg` footage/ảnh làm nền), render HyperFrames và gắn asset; cache theo hash(spec + slot + theme + `TEMPLATE_VERSIONS[template]`) — sửa mẫu nào thì
   tăng số của mẫu đó (sửa phần dùng chung thì tăng tất cả). `--jobs N` render N scene song song (mặc định 1), ghi manifest
   một lần cuối chapter.
   Theme ở `src/graphics/theme.ts`: mặc định `muc-ho-phach` (nền mực + hổ phách; tiêu đề + số Phudu, chữ thường Be Vietnam Pro — user chốt 2026-09-30);
   `"theme": "classic"` trong `brief.json` để dùng giao diện cũ. `"theme": "ho-so"` = **Hồ sơ tư liệu** (thêm 2026-09-30):
-  bố cục + chuyển động riêng cho cả 15 mẫu ở `src/graphics/dossier.ts` (giấy ngà, nhãn Dymo, bút dạ quang, khoanh mực đỏ,
+  bố cục + chuyển động riêng cho cả 22 mẫu ở `src/graphics/dossier.ts` + `dossier-story.ts` (giấy ngà, nhãn Dymo, bút dạ quang, khoanh mực đỏ,
   dấu mộc, chú thích gõ máy; font Anton / IBM Plex Mono / Patrick Hand). Footage `bg` thành ảnh in dán băng keo ("ảnh minh hoạ")
   hoặc bản photocopy mờ thay vì nền mờ toàn khung (user đồng ý). Mốc thời gian có SFX giữ như mẫu gốc (`soundCues()` dùng chung).
   Màu/font chỉ lấy từ token theme, không hardcode trong mẫu.
