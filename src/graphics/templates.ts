@@ -8,6 +8,7 @@
 
 import { buildDossier, dossierBackground, dossierCss } from './dossier.ts';
 import { geoView, type BBox } from './geo.ts';
+import { buildStory, checkStory, isStory, profileTimes, storyCues } from './story.ts';
 import type { Theme } from './theme.ts';
 
 
@@ -65,9 +66,38 @@ export type GraphicSpec = { bg?: Background } & (
   | { template: 'duel'; kicker: string; from: number; to: number; lines: { label: string; tone?: Tone; points: [number, number][] }[]; marks?: { year: number; label: string }[]; fade?: number; sub: string }
   /** Words of one sentence joined by glowing arcs (attention); arcs touching `focus` are drawn strongest. */
   | { template: 'links'; kicker: string; words: string[]; links: [number, number][]; focus?: number; sub: string }
+  | StorySpec
 );
 
-export const TEMPLATES = ['counter', 'bars', 'ring', 'map', 'text', 'layers', 'smile', 'versus', 'chain', 'geo', 'chart', 'chat', 'montage', 'duel', 'links'] as const;
+/**
+ * Storytelling templates (layouts in story.ts / dossier-story.ts): the formats faceless channels
+ * reuse most — countdowns, timelines, processes, quotes, press clippings, annotated documents, people.
+ */
+export type StorySpec =
+  /** Top-N countdown: `items[0]` is #1; rows reveal from the last rank up, #1 lands last and lights up. */
+  | { template: 'rank'; kicker: string; items: { label: string; value?: string }[]; sub: string }
+  /** Events along one axis (2–6), revealed left→right; `focus` = index of the event that matters. */
+  | { template: 'timeline'; kicker: string; events: { year: string; label: string }[]; focus?: number; sub: string }
+  /** A process in 2–5 steps: each lights up in turn, finished ones get a tick; `active` holds at the end (default last). */
+  | { template: 'steps'; kicker: string; steps: { title: string; detail?: string }[]; active?: number; sub: string }
+  /** A quotation; `*chữ*` marks the phrase to stress. `photo` = project-relative portrait (optional). */
+  | { template: 'quote'; quote: string; author: string; role?: string; photo?: string }
+  /**
+   * A real press clipping, retyped: masthead, date, headline (`*chữ*` = words to mark), optional deck.
+   * Only for headlines that exist — the source goes in script.md.
+   */
+  | { template: 'headline'; kicker?: string; paper: string; date: string; headline: string; deck?: string }
+  /**
+   * A real document/photo (project-relative still) as the main picture; the camera pushes in to the
+   * marks, which are drawn in order. `box` = [x, y, w, h] as fractions (0–1) of the image; `side` puts the
+   * note right/above/below the mark (default: right when it fits on screen, else above).
+   * `size` = image pixels, filled in by `cvm graphics` (ffprobe) when missing.
+   */
+  | { template: 'docmark'; kicker?: string; src: string; marks: { box: [number, number, number, number]; type?: 'highlight' | 'circle' | 'underline' | 'redact'; note?: string; side?: 'right' | 'above' | 'below' }[]; zoom?: boolean; size?: [number, number]; sub?: string }
+  /** A person: portrait, name, life years, role and up to 3 dated facts. */
+  | { template: 'profile'; photo: string; name: string; years: string; role: string; facts?: { year: string; text: string }[] };
+
+export const TEMPLATES = ['counter', 'bars', 'ring', 'map', 'text', 'layers', 'smile', 'versus', 'chain', 'geo', 'chart', 'chat', 'montage', 'duel', 'links', 'rank', 'timeline', 'steps', 'quote', 'headline', 'docmark', 'profile'] as const;
 
 /**
  * Per-template output version (part of the `cvm graphics` cache key): bump one entry when that
@@ -77,6 +107,7 @@ export const TEMPLATES = ['counter', 'bars', 'ring', 'map', 'text', 'layers', 's
 export const TEMPLATE_VERSIONS: Record<(typeof TEMPLATES)[number], number> = {
   counter: 11, bars: 11, ring: 11, map: 11, text: 12, layers: 11, smile: 11, versus: 11,
   chain: 11, geo: 11, chart: 11, chat: 11, montage: 11, duel: 11, links: 11,
+  rank: 1, timeline: 1, steps: 1, quote: 1, headline: 1, docmark: 1, profile: 1,
 };
 
 export const MONTAGE_STEP = 0.6;
@@ -86,6 +117,8 @@ export const extOf = (file: string) => file.slice(file.lastIndexOf('.')).toLower
 export function specFiles(spec: GraphicSpec): { src: string; name: string }[] {
   const files = spec.bg ? [{ src: spec.bg.src, name: bgFileName(spec.bg) }] : [];
   if (spec.template === 'montage') spec.items.forEach((it, i) => files.push({ src: it.src, name: `m${i}${extOf(it.src)}` }));
+  if (spec.template === 'docmark') files.push({ src: spec.src, name: `doc${extOf(spec.src)}` });
+  if ((spec.template === 'quote' || spec.template === 'profile') && spec.photo) files.push({ src: spec.photo, name: `photo${extOf(spec.photo)}` });
   return files;
 }
 
@@ -166,14 +199,17 @@ export const polyLength = (pt: (t: number) => [number, number], steps = 80) => {
   return len;
 };
 
+/** Editorial building blocks: kicker (accent bar + masked rise), context line, pop-in. */
+export const kick = (text: string, cls = '') => `<div class="kick${cls ? ` ${cls}` : ''}"><i id="kq"></i>${mask('k', esc(text))}</div>`;
+export const kickIn = (at = 0.1) => [`tl.fromTo("#kq", { scaleX: 0 }, { scaleX: 1, duration: 0.45, ease: "power3.out" }, ${f2(at)});`, rise('#k', at + 0.1, 0.7)];
+export const sub = (text: string, cls = '') => `<div class="sub${cls ? ` ${cls}` : ''}"><div class="mb"><div id="s" class="mi">${esc(text)}</div></div></div>`;
+export const pop = (sel: string, at: number, from = 0.4, ease = 'back.out(2.2)', dur = 0.5) => `tl.fromTo("${sel}", { opacity: 0, scale: ${from} }, { opacity: 1, scale: 1, duration: ${dur}, ease: "${ease}" }, ${f2(at)});`;
+
 function build(spec: GraphicSpec, t: Theme, seconds: number): Parts {
+  if (isStory(spec)) return buildStory(spec, t, seconds);
   const c = t.colors;
   const ACC = c.accent;
   const CY = c.secondary;
-  const kick = (text: string, cls = '') => `<div class="kick${cls ? ` ${cls}` : ''}"><i id="kq"></i>${mask('k', esc(text))}</div>`;
-  const kickIn = (at = 0.1) => [`tl.fromTo("#kq", { scaleX: 0 }, { scaleX: 1, duration: 0.45, ease: "power3.out" }, ${f2(at)});`, rise('#k', at + 0.1, 0.7)];
-  const sub = (text: string, cls = '') => `<div class="sub${cls ? ` ${cls}` : ''}"><div class="mb"><div id="s" class="mi">${esc(text)}</div></div></div>`;
-  const pop = (sel: string, at: number, from = 0.4, ease = 'back.out(2.2)', dur = 0.5) => `tl.fromTo("${sel}", { opacity: 0, scale: ${from} }, { opacity: 1, scale: 1, duration: ${dur}, ease: "${ease}" }, ${f2(at)});`;
 
   switch (spec.template) {
     // Monumental number on the left: odometer roll, unit rises beside it on the same baseline,
@@ -925,6 +961,8 @@ function countWindow(spec: GraphicSpec): { at: number; dur: number; ease: 'power
       return { at: 1.2, dur: 1.7, ease: 'power3' };
     case 'bars':
       return { at: 0.55, dur: 1.3, ease: 'power3' };
+    case 'profile':
+      return /\d/.test(spec.years) ? { ...profileTimes.roll, ease: 'power3' } : undefined;
     default:
       return undefined;
   }
@@ -963,6 +1001,7 @@ export function soundCues(spec: GraphicSpec): SoundCue[] {
   if (spec.template === 'duel') cues.push({ sfx: 'whoosh', at: 0.35, gain: 0.35 }, { sfx: 'pop', at: 2.6, gain: 0.3 });
   if (spec.template === 'links') spec.links.forEach((_, k) => k < 6 && cues.push({ sfx: 'tick', at: 0.5 + spec.words.length * 0.08 + k * Math.min(0.28, 1.6 / spec.links.length), gain: 0.3 }));
   if (spec.template === 'montage') spec.items.forEach((_, i) => i > 0 && cues.push({ sfx: 'tick', at: i * (spec.step ?? MONTAGE_STEP), gain: 0.5 }));
+  if (isStory(spec)) cues.push(...storyCues(spec));
   return cues;
 }
 
@@ -1002,7 +1041,9 @@ body{margin:0;background:${c.bg};}
 export function validateSpec(sceneId: string, spec: unknown): GraphicSpec {
   const t = (spec as { template?: string } | null)?.template;
   if (!t || !(TEMPLATES as readonly string[]).includes(t)) throw new Error(`${sceneId}: visual.spec.template phải là một trong ${TEMPLATES.join(', ')}`);
-  return spec as GraphicSpec;
+  const g = spec as GraphicSpec;
+  if (isStory(g)) checkStory(sceneId, g);
+  return g;
 }
 
 /**

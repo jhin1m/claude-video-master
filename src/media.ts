@@ -43,6 +43,14 @@ export function runAsync(cmd: string, args: string[], prefix = ''): Promise<stri
 
 const ffmpeg = (args: string[]) => run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args]);
 
+/** Pixel size of an image or the first video stream. */
+export function probeSize(file: string): [number, number] {
+  const out = run('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', file]).trim();
+  const [w, h] = out.split(',').map(Number);
+  if (!w || !h) throw new Error(`ffprobe không đọc được kích thước: ${file}`);
+  return [w, h];
+}
+
 export function probeDuration(file: string): number {
   const out = run('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', file]).trim();
   const d = Number(out);

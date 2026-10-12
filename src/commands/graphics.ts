@@ -5,7 +5,7 @@
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { FPS, runAsync } from '../media.ts';
+import { FPS, probeSize, runAsync } from '../media.ts';
 import { mapLimit } from '../pool.ts';
 import { chapterScenes, readJson, ROOT, slotSeconds, splitSceneId, updateScenes, type Project, type Scene, type SceneEdits } from '../project.ts';
 import { renderHtml, specFiles, TEMPLATE_VERSIONS, validateSpec, type GraphicSpec } from '../graphics/templates.ts';
@@ -54,10 +54,12 @@ export async function graphics(p: Project, chapter: number, onlyScene: string | 
   };
   const todo: { s: Scene; spec: GraphicSpec; dir: string; out: string; rel: string; hash: string }[] = [];
   for (const s of scenes.filter((x) => x.visual.spec)) {
-    const spec = validateSpec(s.id, s.visual.spec);
+    let spec = validateSpec(s.id, s.visual.spec);
     const seconds = slotSeconds(s) + TAIL_S;
     const dir = path.join(p.dir, 'graphics', s.id);
     const files = inputFiles(p, spec);
+    // Marks are placed in image fractions; the layout needs the still's real aspect ratio.
+    if (spec.template === 'docmark' && !spec.size) spec = { ...spec, size: probeSize(path.join(p.dir, spec.src)) };
     const hash = specHash(s, spec, seconds, files, theme);
     const { chapter: ch, scene } = splitSceneId(s.id);
     const rel = path.join('visuals', ch, `${scene}.mp4`);

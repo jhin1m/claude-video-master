@@ -12,6 +12,8 @@
 // so `soundCues()` stays valid for both styles.
 
 import { alpha, bgFileName, chatTiming, countTo, cubic, decimalsOf, esc, extOf, f2, isImage, MONTAGE_STEP, polyLength, vn, wheel, type Background, type GraphicSpec, type Parts } from './templates.ts';
+import { buildDossierStory } from './dossier-story.ts';
+import { isStory } from './story.ts';
 import type { Theme } from './theme.ts';
 
 /** Where a template wants the footage: a taped print at this spot, or a faint photocopy of the whole frame. */
@@ -23,13 +25,13 @@ export interface DossierParts extends Parts {
 const PRINT_RIGHT: PrintSpot = { x: 1190, y: 250, w: 580, h: 420, rot: 2.6 };
 
 /** Deterministic pseudo-random in [-1, 1] (same hash as the registry hw-* family). */
-const hash = (n: number, seed: number) => {
+export const hash = (n: number, seed: number) => {
   const x = Math.sin(n * 127.1 + seed * 311.7) * 43758.5453;
   return (x - Math.floor(x)) * 2 - 1;
 };
 
 /** Catmull-Rom through points → cubic Bézier path (smooth, passes every point). */
-function smooth(P: [number, number][]): string {
+export function smooth(P: [number, number][]): string {
   let d = `M${f2(P[0]![0])} ${f2(P[0]![1])}`;
   for (let i = 0; i < P.length - 1; i++) {
     const a = P[Math.max(0, i - 1)]!;
@@ -42,7 +44,7 @@ function smooth(P: [number, number][]): string {
 }
 
 /** A red-ink loop around a w×h box (px), starting top-left and overshooting past its start. */
-function inkLoop(w: number, h: number, seed: number): string {
+export function inkLoop(w: number, h: number, seed: number): string {
   const cx = w / 2;
   const cy = h / 2;
   const N = 28;
@@ -58,18 +60,18 @@ function inkLoop(w: number, h: number, seed: number): string {
 
 // Authored in a fixed viewBox and stretched into the word box (preserveAspectRatio="none"): the
 // anisotropic stretch is what gives the stroke its marker-nib weight.
-const HIGHLIGHT = { viewBox: '0 0 100 40', d: 'M 3 24 C 22 20.5, 47 25.5, 68 22.5 C 79 21, 90 23, 97 21.5', width: 26 };
-const UNDERLINE = { viewBox: '0 0 100 12', d: 'M 2 7 C 20 4.5, 46 8.5, 66 6 C 80 4.5, 92 7.5, 98 5.5', width: 4.5 };
+export const HIGHLIGHT = { viewBox: '0 0 100 40', d: 'M 3 24 C 22 20.5, 47 25.5, 68 22.5 C 79 21, 90 23, 97 21.5', width: 26 };
+export const UNDERLINE = { viewBox: '0 0 100 12', d: 'M 2 7 C 20 4.5, 46 8.5, 66 6 C 80 4.5, 92 7.5, 98 5.5', width: 4.5 };
 /** Pencil hatching (`url(#hatch)`), one per composition. */
-const HATCH = (ink: string) => `<defs><pattern id="hatch" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(40)"><line x1="0" y1="0" x2="0" y2="16" stroke="${ink}" stroke-width="3.2" opacity=".42"/></pattern></defs>`;
-const markSvg = (m: typeof HIGHLIGHT, id: string, cls: string, color: string) =>
+export const HATCH = (ink: string) => `<defs><pattern id="hatch" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(40)"><line x1="0" y1="0" x2="0" y2="16" stroke="${ink}" stroke-width="3.2" opacity=".42"/></pattern></defs>`;
+export const markSvg = (m: typeof HIGHLIGHT, id: string, cls: string, color: string) =>
   `<svg class="${cls}" viewBox="${m.viewBox}" preserveAspectRatio="none" aria-hidden="true"><path id="${id}" d="${m.d}" fill="none" stroke="${color}" stroke-width="${m.width}" stroke-linecap="round" stroke-linejoin="round" opacity="0"/></svg>`;
 
 /**
  * Page runtime: dash draw-on from the measured length (ink hidden until its cue, since a round cap
  * paints a dot at dashoffset == length), stop-motion boil, typewriter, blinking caret.
  */
-const RUNTIME = `const hs = { fns: [] };
+export const RUNTIME = `const hs = { fns: [] };
 tl.eventCallback("onUpdate", () => { for (const f of hs.fns) f(); });
 hs.hash = (n, seed) => { const x = Math.sin(n * 127.1 + seed * 311.7) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; };
 hs.draw = (id, at, dur, op) => { const p = document.getElementById(id), L = p.getTotalLength(); p.style.strokeDasharray = L; gsap.set(p, { strokeDashoffset: L, opacity: 0 }); tl.set(p, { opacity: op }, at); tl.fromTo(p, { strokeDashoffset: L }, { strokeDashoffset: 0, duration: dur, ease: "power2.inOut" }, at); };
@@ -156,25 +158,28 @@ export function dossierBackground(b: Background, dur: string, spot: PrintSpot, f
 }
 
 /** Dossier layout for the templates this style covers; `undefined` → the editorial layout. */
+/** Dossier building blocks: label-tape kicker, typed footnote, handwriting, stamp, press, tape. */
+export const label = (text: string, cls = '') => `<div id="dy" class="dyw${cls ? ` ${cls}` : ''}"><div class="dy">${esc(text)}</div></div>`;
+export const labelIn = (at = 0.1) =>
+  `tl.fromTo("#dy", { clipPath: "inset(-40% 100% -40% -6%)", rotation: -1.4, y: -10 }, { clipPath: "inset(-40% -6% -40% -6%)", rotation: -1.4, y: 0, duration: 0.55, ease: "power2.out" }, ${f2(at)});`;
+export const typed = (id: string, text: string, cls = '', style = '') => `<div class="tw${cls ? ` ${cls}` : ''}"${style ? ` style="${style}"` : ''}><span class="gh">${esc(text)}▌</span><span id="${id}" class="ty" data-full="${esc(text)}"></span></div>`;
+export const typeIn = (id: string, at: number, text: string) => `hs.type("${id}", ${f2(at)}, ${f2(Math.min(1.5, Math.max(0.5, [...text].length * 0.024)))});`;
+/** Handwriting written on left→right. */
+export const writeIn = (sel: string, at: number, dur = 0.55) => `tl.fromTo("${sel}", { clipPath: "inset(-30% 100% -30% -10%)" }, { clipPath: "inset(-30% -10% -30% -10%)", duration: ${dur}, ease: "power1.inOut" }, ${f2(at)});`;
+/** Rubber stamp: slams down from 1.6×, then a three-frame shake of the whole sheet. */
+export const stampIn = (sel: string, at: number, rot: number) => [
+  `tl.fromTo("${sel}", { opacity: 0, scale: 1.6, rotation: ${rot - 6} }, { opacity: 0.9, scale: 1, rotation: ${rot}, duration: 0.24, ease: "expo.in" }, ${f2(at)});`,
+  `tl.to("#world", { x: 5, y: -3, duration: 1 / 30, ease: "none" }, ${f2(at + 0.24)}); tl.to("#world", { x: -4, y: 2, duration: 1 / 30, ease: "none" }, ">"); tl.to("#world", { x: 0, y: 0, duration: 1 / 30, ease: "none" }, ">");`,
+];
+/** Word pressed into the paper: lands from slightly large and blurred. */
+export const press = (sel: string, at: number) => `tl.fromTo("${sel}", { opacity: 0, scale: 1.14, filter: "blur(6px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, ${f2(at)});`;
+export const tapeIn = (sel: string, at: number, rot: number) => `tl.fromTo("${sel}", { opacity: 0, scale: 1.2, rotation: ${rot} }, { opacity: 1, scale: 1, rotation: ${rot}, duration: 0.24, ease: "power2.out" }, ${f2(at)});`;
+
 export function buildDossier(spec: GraphicSpec, t: Theme, seconds: number): DossierParts | undefined {
   const c = t.colors;
   const hasPrint = !!spec.bg;
-  const label = (text: string, cls = '') => `<div id="dy" class="dyw${cls ? ` ${cls}` : ''}"><div class="dy">${esc(text)}</div></div>`;
-  const labelIn = (at = 0.1) =>
-    `tl.fromTo("#dy", { clipPath: "inset(-40% 100% -40% -6%)", rotation: -1.4, y: -10 }, { clipPath: "inset(-40% -6% -40% -6%)", rotation: -1.4, y: 0, duration: 0.55, ease: "power2.out" }, ${f2(at)});`;
-  const typed = (id: string, text: string, cls = '', style = '') => `<div class="tw${cls ? ` ${cls}` : ''}"${style ? ` style="${style}"` : ''}><span class="gh">${esc(text)}▌</span><span id="${id}" class="ty" data-full="${esc(text)}"></span></div>`;
-  const typeIn = (id: string, at: number, text: string) => `hs.type("${id}", ${f2(at)}, ${f2(Math.min(1.5, Math.max(0.5, [...text].length * 0.024)))});`;
-  /** Handwriting written on left→right. */
-  const writeIn = (sel: string, at: number, dur = 0.55) => `tl.fromTo("${sel}", { clipPath: "inset(-30% 100% -30% -10%)" }, { clipPath: "inset(-30% -10% -30% -10%)", duration: ${dur}, ease: "power1.inOut" }, ${f2(at)});`;
-  /** Rubber stamp: slams down from 1.6×, then a three-frame shake of the whole sheet. */
-  const stampIn = (sel: string, at: number, rot: number) => [
-    `tl.fromTo("${sel}", { opacity: 0, scale: 1.6, rotation: ${rot - 6} }, { opacity: 0.9, scale: 1, rotation: ${rot}, duration: 0.24, ease: "expo.in" }, ${f2(at)});`,
-    `tl.to("#world", { x: 5, y: -3, duration: 1 / 30, ease: "none" }, ${f2(at + 0.24)}); tl.to("#world", { x: -4, y: 2, duration: 1 / 30, ease: "none" }, ">"); tl.to("#world", { x: 0, y: 0, duration: 1 / 30, ease: "none" }, ">");`,
-  ];
-  /** Word pressed into the paper: lands from slightly large and blurred. */
-  const press = (sel: string, at: number) => `tl.fromTo("${sel}", { opacity: 0, scale: 1.14, filter: "blur(6px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, ${f2(at)});`;
-  const tapeIn = (sel: string, at: number, rot: number) => `tl.fromTo("${sel}", { opacity: 0, scale: 1.2, rotation: ${rot} }, { opacity: 1, scale: 1, rotation: ${rot}, duration: 0.24, ease: "power2.out" }, ${f2(at)});`;
   const base = { layout: 'left' as const, print: hasPrint ? PRINT_RIGHT : ('copy' as const) };
+  if (isStory(spec)) return buildDossierStory(spec, t, seconds);
 
   switch (spec.template) {
     // The statement as a headline: words press into the paper; *marked* words get a highlighter
