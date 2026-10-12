@@ -6,6 +6,7 @@ import { animatic } from './commands/animatic.ts';
 import { archiveFetch, archivePick, archivePickBatch, archiveSearch } from './commands/archive.ts';
 import { assetSet } from './commands/asset.ts';
 import { init } from './commands/init.ts';
+import { iaFetch, iaPick, iaPickBatch, iaSearch, minHeightArg } from './commands/internet-archive.ts';
 import { graphics } from './commands/graphics.ts';
 import { chapterList, final, render } from './commands/render.ts';
 import { status } from './commands/status.ts';
@@ -33,6 +34,13 @@ const USAGE = `cvm <lệnh> [--project <slug>]
   archive pick <sceneId> <pageid> [--fit cover|contain]  tải + dựng khung 1920×1080 + ghi credit
   archive pick --batch picks.json     nhiều scene: [{"scene","id","fit"?}] — ghi manifest một lần
                                       (Commons: tải từng ảnh, giãn 5–8 s, 429 → chờ Retry-After)
+  ia search <sceneId> "<query>" [--type video|image] [--collection id] [--min-height N]
+                                      phim/ảnh tư liệu Internet Archive, chỉ collection danh sách trắng (universal_newsreels,
+                                      FedFlix, prelinger, wwIIarchive, nasa); phim ≥ 720p (--min-height 480 khi user cho dùng SD)
+  ia pick <sceneId> <identifier> [--file f] [--start s] [--fit cover|contain] [--bg] [--min-height N]
+                                      phim: cắt đúng đoạn từ server (không tải cả phim) → 1920×1080; ảnh: dựng khung
+  ia pick --batch picks.json          [{"scene","id","file"?,"start"?,"fit"?,"bg"?,"type"?}] — ghi manifest một lần
+  ia fetch <identifier|sceneId…> | --batch picks.json   chỉ tải ảnh gốc về ia/raw/
   asset set <sceneId> <path>          ghi nhận visual đã có cho scene
   render --chapter N | --chapters 3-12 | --all [--jobs N]  renders/chNN.mp4 + .srt (N chapter song song, mặc định ${RENDER_JOBS})
   final                               final.mp4 + subs.srt + credits.txt`;
@@ -60,6 +68,10 @@ async function main(): Promise<void> {
       draft: { type: 'boolean', default: false },
       fit: { type: 'string' },
       bg: { type: 'boolean', default: false },
+      type: { type: 'string' },
+      collection: { type: 'string' },
+      file: { type: 'string' },
+      'min-height': { type: 'string' },
       batch: { type: 'string' },
       jobs: { type: 'string' },
       chapters: { type: 'string' },
@@ -97,6 +109,14 @@ async function main(): Promise<void> {
       if (sub === 'fetch') return archiveFetch(p, rest, values.batch);
       if (sub === 'pick') return values.batch ? archivePickBatch(p, values.batch) : archivePick(p, rest[0], rest[1], values.fit);
       throw new Error('Cú pháp: cvm archive search|fetch|pick …');
+    case 'ia':
+      if (sub === 'search') return iaSearch(p, rest[0], rest[1], values.type, values.collection, minHeightArg(values['min-height']));
+      if (sub === 'fetch') return iaFetch(p, rest, values.batch);
+      if (sub === 'pick') {
+        const minHeight = minHeightArg(values['min-height']);
+        return values.batch ? iaPickBatch(p, values.batch, minHeight) : iaPick(p, rest[0], rest[1], { file: values.file, start: values.start, fit: values.fit, bg: values.bg, type: values.type, minHeight });
+      }
+      throw new Error('Cú pháp: cvm ia search|fetch|pick …');
     default:
       throw new Error(`Lệnh không hợp lệ: ${cmd}\n${USAGE}`);
   }

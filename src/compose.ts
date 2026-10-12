@@ -66,12 +66,12 @@ function place(src: string, dest: string): void {
 }
 
 /**
- * Where a scene's pixels come from. Stock uses the untrimmed download so the transition handles
- * show real footage; older picks without `visual.clip` fall back to the default mid-clip cut.
+ * Where a scene's pixels come from. Footage with `visual.clip` (stock, archival film) uses the untrimmed
+ * source so the transition handles show real footage; older picks without `visual.clip` fall back to the default mid-clip cut.
  */
 function sceneSource(p: Project, s: Scene): { file: string; start: number } {
-  if (s.visual.type !== 'stock') return { file: s.visual.asset!, start: 0 };
   if (s.visual.clip) return s.visual.clip;
+  if (s.visual.type !== 'stock') return { file: s.visual.asset!, start: 0 };
   const src = s.visual.source;
   if (src && typeof src === 'object') {
     const raw = readdirSync(path.join(p.dir, 'stock', 'raw')).find((f) => f.startsWith(`pexels-${src.id}-`));
@@ -107,7 +107,7 @@ export function chapterComposition(p: Project, scenes: Scene[], timings: Timing[
     files[rel] = path.join(p.dir, src.file);
     // Graphics start their own timeline HANDLE early (their first frames are background only);
     // footage keeps its cut aligned with the voice and borrows the handle from the source.
-    const mediaStart = s.visual.type === 'stock' ? Math.max(0, src.start - (start - clipStart)) : 0;
+    const mediaStart = s.visual.type === 'stock' || s.visual.clip ? Math.max(0, src.start - (start - clipStart)) : 0;
     const timing = `data-start="${f3(clipStart)}" data-duration="${f3(clipEnd - clipStart)}" data-track-index="${i % 2}"`;
     const media = /\.(png|jpe?g|webp)$/i.test(rel)
       ? `<img id="m${i}" class="clip" src="${rel}" alt="" ${timing} />`

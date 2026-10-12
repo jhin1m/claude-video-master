@@ -30,7 +30,7 @@ export function readPicks(file: string): PickEntry[] {
 }
 
 /** Up-front check for a batch: every scene exists and appears once (so nothing is half-applied later). */
-export function checkPicks(p: Project, picks: PickEntry[]): void {
+export function checkPicks(p: Project, picks: { scene: string }[]): void {
   const seen = new Set<string>();
   for (const e of picks) {
     findScene(p, e.scene);

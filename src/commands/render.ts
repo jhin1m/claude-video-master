@@ -105,7 +105,7 @@ export function final(p: Project): void {
 }
 
 /** One line per distinct source, ready to paste into the video description (CC BY/BY-SA require it). */
-function credits(scenes: Scene[]): string {
+export function credits(scenes: Scene[]): string {
   const lines = new Map<string, string>();
   for (const src of scenes.flatMap((s) => [s.visual.source, ...(s.visual.sources ?? [])])) {
     if (!src || typeof src !== 'object' || lines.has(src.url)) continue;
@@ -113,7 +113,9 @@ function credits(scenes: Scene[]): string {
       src.url,
       src.provider === 'wikimedia'
         ? `"${src.title.replace(/^File:/, '')}" — ${src.author} — ${src.license}${src.licenseUrl ? ` (${src.licenseUrl})` : ''} — Wikimedia Commons: ${src.url}`
-        : `Video: ${src.author} — Pexels: ${src.url}`,
+        : src.provider === 'internet_archive'
+          ? `"${src.title}" — ${src.author} — ${src.license}${src.licenseUrl ? ` (${src.licenseUrl})` : ''} — Internet Archive (${src.collection}): ${src.url}`
+          : `Video: ${src.author} — Pexels: ${src.url}`,
     );
   }
   return lines.size ? `Nguồn hình ảnh:\n${[...lines.values()].join('\n')}\n` : '';

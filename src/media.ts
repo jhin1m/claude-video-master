@@ -64,7 +64,14 @@ export function probeDuration(file: string): number {
  */
 const POLITE_HOSTS: Record<string, { gapMs: number; jitterMs: number }> = {
   'upload.wikimedia.org': { gapMs: 5000, jitterMs: 3000 },
+  // Internet Archive: API and every dnNNN.*.archive.org file server share one queue.
+  'archive.org': { gapMs: 2000, jitterMs: 1500 },
 };
+/** Throttle bucket of a host: its own entry, or the parent domain's (dn790001.ca.archive.org → archive.org). */
+function politeKey(host: string): string | undefined {
+  if (POLITE_HOSTS[host]) return host;
+  return Object.keys(POLITE_HOSTS).find((k) => host.endsWith(`.${k}`));
+}
 const MAX_WAIT_MS = 15 * 60_000; // a longer Retry-After stops the command instead of sleeping silently
 const MAX_429 = 2;
 
@@ -92,6 +99,22 @@ function reserveSlot(host: string, rule: { gapMs: number; jitterMs: number }): n
   });
 }
 
+/** Wait for this process's turn on a polite host (no-op for other hosts). For requests not made via download(). */
+export async function politeTurn(url: string): Promise<void> {
+  const key = politeKey(new URL(url).host);
+  if (!key) return;
+  const wait = reserveSlot(key, POLITE_HOSTS[key]!);
+  if (wait > 0) await sleep(wait);
+}
+
+/** A polite host answered 429: every cvm process waits until Retry-After has passed. */
+export function politeBlock(url: string, retryAfter: string | null): number {
+  const wait = retryAfterMs(retryAfter);
+  const key = politeKey(new URL(url).host);
+  if (key) blockHost(key, Date.now() + wait);
+  return wait;
+}
+
 function blockHost(host: string, until: number): void {
   const file = hostStateFile(host);
   withFileLock(file, () => {
@@ -115,17 +138,18 @@ function retryAfterMs(v: string | null): number {
  */
 export async function download(url: string, dest: string, headers: Record<string, string> = {}): Promise<{ contentType: string }> {
   const { host, pathname } = new URL(url);
-  const rule = POLITE_HOSTS[host];
+  const key = politeKey(host);
+  const rule = key ? POLITE_HOSTS[key] : undefined;
   for (let hits = 0; ; ) {
-    if (rule) {
-      const wait = reserveSlot(host, rule);
+    if (key && rule) {
+      const wait = reserveSlot(key, rule);
       if (wait > 0) await sleep(wait);
     }
     const res = await fetch(url, { headers });
     if (res.status === 429) {
       await res.body?.cancel();
       const wait = retryAfterMs(res.headers.get('retry-after'));
-      if (rule) blockHost(host, Date.now() + wait);
+      if (key) blockHost(key, Date.now() + wait);
       if (++hits > MAX_429 || wait > MAX_WAIT_MS) throw new Error(`${host} 429 (Retry-After ${Math.round(wait / 1000)}s) — dừng tải, thử lại sau`);
       console.warn(`⚠ ${host} 429 — dừng tải, chờ ${Math.round(wait / 1000)}s theo Retry-After …`);
       if (!rule) await sleep(wait); // polite hosts wait in reserveSlot (blockedUntil)
@@ -181,13 +205,22 @@ export function buildChapterAudio(projectDir: string, scenes: Scene[], outWav: s
 const VIDEO_NORMALIZE = `scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},fps=${FPS},format=yuv420p,setsar=1`;
 const X264 = ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p'];
 
-/** Cut a clip to exactly `frames` at 1920×1080/30fps, no audio. Short clips hold their last frame. */
-export function normalizeClip(input: string, output: string, frames: number, startAt = 0): void {
+/** Fit the whole picture over a blurred, darkened fill of itself (4:3 archival film, portrait stills). */
+const CONTAIN_GRAPH = (tail: string) =>
+  `[0:v]split[a][b];[a]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},gblur=sigma=40,eq=brightness=-0.22:saturation=0.55[bg];` +
+  `[b]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease:flags=lanczos[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,fps=${FPS},format=yuv420p,setsar=1${tail}[v]`;
+
+/**
+ * Cut a clip to exactly `frames` at 1920×1080/30fps, no audio. Short clips hold their last frame.
+ * `cover` crops to fill (stock footage); `contain` keeps the whole frame over a blurred fill.
+ */
+export function normalizeClip(input: string, output: string, frames: number, startAt = 0, fit: 'cover' | 'contain' = 'cover'): void {
   mkdirSync(path.dirname(output), { recursive: true });
   const isImage = /\.(png|jpe?g|webp)$/i.test(input);
   const inputArgs = isImage ? ['-loop', '1', '-i', input] : ['-ss', startAt.toFixed(3), '-i', input];
-  const vf = isImage ? VIDEO_NORMALIZE : `${VIDEO_NORMALIZE},tpad=stop_mode=clone:stop_duration=${Math.ceil(frames / FPS) + 1}`;
-  ffmpeg([...inputArgs, '-vf', vf, '-frames:v', String(frames), '-an', ...X264, output]);
+  const tail = isImage ? '' : `,tpad=stop_mode=clone:stop_duration=${Math.ceil(frames / FPS) + 1}`;
+  const filter = fit === 'contain' ? ['-filter_complex', CONTAIN_GRAPH(tail), '-map', '[v]'] : ['-vf', `${VIDEO_NORMALIZE}${tail}`];
+  ffmpeg([...inputArgs, ...filter, '-frames:v', String(frames), '-an', ...X264, output]);
 }
 
 /**
@@ -204,6 +237,24 @@ export function frameStill(input: string, output: string, fit: 'cover' | 'contai
       : `[0:v]split[a][b];[a]${fill},gblur=sigma=40,eq=brightness=-0.22:saturation=0.55[bg];` +
         `[b]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuvj420p[v]`;
   ffmpeg(['-i', input, '-filter_complex', graph, '-map', '[v]', '-frames:v', '1', '-q:v', '2', output]);
+}
+
+/**
+ * Cut `seconds` of a remote video starting at `startAt` without downloading the whole file (ffmpeg
+ * seeks with HTTP range requests; `url` must be the final URL, not a redirect). Kept at source
+ * resolution, no audio, near-lossless — normalizeClip() makes the 1920×1080 scene clip from it.
+ */
+export function cutRemote(url: string, output: string, startAt: number, seconds: number, userAgent: string): void {
+  mkdirSync(path.dirname(output), { recursive: true });
+  const part = output.replace(/(\.\w+)$/, '.part$1');
+  ffmpeg(['-user_agent', userAgent, '-reconnect', '1', '-ss', startAt.toFixed(3), '-i', url, '-t', seconds.toFixed(3), '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '14', '-pix_fmt', 'yuv420p', part]);
+  renameSync(part, output);
+}
+
+/** Seconds of near-black picture in a clip (fades, leader, splices in archival reels). */
+export function blackSeconds(file: string): number {
+  const res = spawnSync('ffmpeg', ['-hide_banner', '-i', file, '-vf', 'blackdetect=d=0.2:pix_th=0.08', '-an', '-f', 'null', '-'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  return [...(res.stderr ?? '').matchAll(/black_duration:([\d.]+)/g)].reduce((n, m) => n + Number(m[1]), 0);
 }
 
 export function extractFrame(input: string, output: string, atSeconds: number): void {

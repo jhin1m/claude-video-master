@@ -33,6 +33,24 @@ export interface ArchiveSource {
   licenseUrl: string | null;
 }
 
+/**
+ * Internet Archive item (archival film or still) from a whitelisted collection: the credit names the
+ * item, its creator, the collection and the license/rights statement it was accepted under.
+ */
+export interface IASource {
+  provider: 'internet_archive';
+  id: string; // item identifier (archive.org/details/<id>)
+  file: string; // file inside the item that was used
+  title: string;
+  url: string; // item page
+  author: string;
+  collection: string;
+  license: string;
+  licenseUrl: string | null;
+}
+
+export type Source = StockSource | ArchiveSource | IASource;
+
 export interface Scene {
   id: string; // ch02_s004
   chapter: number;
@@ -42,11 +60,11 @@ export interface Scene {
     type: VisualType;
     intent: string;
     prompt: string;
-    source: StockSource | ArchiveSource | string | null;
+    source: Source | string | null;
     /** Extra credited sources when one scene shows several works (e.g. a montage of Commons stills). */
-    sources?: (StockSource | ArchiveSource)[];
+    sources?: Source[];
     asset: string | null; // path relative to the project dir
-    /** Stock only: the untrimmed download and where the scene's cut starts in it (lets render add transition handles). */
+    /** Footage (stock, archival film): the untrimmed source and where the scene's cut starts in it (lets render add transition handles). */
     clip?: { file: string; start: number };
     status: 'todo' | 'ready';
     spec?: unknown; // graphic template data for animation/text_card (see src/graphics/templates.ts)
