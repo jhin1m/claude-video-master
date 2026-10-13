@@ -4,7 +4,7 @@
 //      — film: cut just the needed span straight from the server (no full download), 1920×1080/30fps
 //        (non-16:9 film framed whole over a blurred fill), 1 s handle each side for transitions;
 //        still: download, frame to 1920×1080. Credit in visual.source.
-// --min-height: default 720 (user rule); lower only when the user accepts SD archival film for the video.
+// --min-height: default 480 (archival film is mostly SD); raise it to 720 to keep only HD film.
 // cvm ia pick --batch picks.json  — [{ "scene", "id", "file"?, "start"?, "fit"?, "bg"?, "type"? }], one manifest write
 // cvm ia fetch <identifier|sceneId…> | --batch picks.json — download still originals only (no manifest write)
 // Requests are spaced through the shared archive.org queue (media.ts); 429/503 → stop and wait Retry-After.
@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { blackSeconds, cutRemote, download, extractFrame, FPS, frameStill, HEIGHT, normalizeClip, probeSize, WIDTH } from '../media.ts';
 import { readJson, slotSeconds, splitSceneId, updateScenes, writeJsonAtomic, type IASource, type Project, type SceneEdits } from '../project.ts';
-import { getCandidate, MIN_IMAGE_SIDE, MIN_VIDEO_HEIGHT, resolveFileUrl, search, USER_AGENT, type IACandidate, type IAKind } from '../stock/internet-archive.ts';
+import { getCandidate, MIN_IMAGE_SIDE, MIN_VIDEO_HEIGHT, resolveFileUrl, SD_BELOW, search, USER_AGENT, type IACandidate, type IAKind } from '../stock/internet-archive.ts';
 import { checkPicks, findScene } from './asset.ts';
 import { GRAPHIC_TYPES, TAIL_S } from './graphics.ts';
 
@@ -187,6 +187,9 @@ async function pickMany(p: Project, picks: IAPick[], minHeight = MIN_VIDEO_HEIGH
           } else {
             x.visual.asset = rel;
             x.visual.clip = { file: framedRel, start: pre };
+            // SD film is already soft; a Ken Burns zoom would soften it further.
+            if ((c.file.height ?? 0) < SD_BELOW) x.visual.kenBurns = false;
+            else delete x.visual.kenBurns;
             x.visual.status = 'ready';
           }
           x.visual.source = source;

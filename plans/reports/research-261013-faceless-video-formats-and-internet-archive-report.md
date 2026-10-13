@@ -57,6 +57,8 @@ Mã: `src/graphics/story.ts` (editorial + nhịp dùng chung + kiểm spec + SFX
 - Thử thật: tìm "world war II", "apollo moon", "space shuttle launch", "1950s commercial", "the space program"; pick 2 phim NASA (720p, 4K) + 2 ảnh NASA + 1 phim Prelinger 4:3 (`--min-height 480`); render + `final` → `credits.txt` đúng 4 dòng nguồn. Phát hiện + sửa: URL CC0 bị khớp nhầm luật PD cũ (test bắt), phim 4:3 bị cắt khung trong render (nay dùng bản đã đóng khung làm nguồn), đoạn giữa phim rơi vào khung đen (nay báo ⚠).
 
 ## Câu hỏi chờ duyệt
+**Đã trả lời 2026-10-13:** (1) hạ mặc định xuống 480p cho phim tư liệu, phim < 720p tự tắt Ken Burns (giải luôn câu 7); (2) giữ bắt buộc `licenseurl` cho Prelinger; (3) `headline` dịch sang tiếng Việt; (6) chưa làm bước 12 fps. Còn mở: 4, 5, 8.
+
 1. **Ngưỡng 720p cho phim Internet Archive.** Số liệu: chỉ 1,3% item có MP4 ≥ 720p (80 item mẫu); Prelinger/newsreel hầu hết 640×480, Apollo 852×480. Với 720p, 3 chủ đề thử ("world war II", "1950s commercial", "apollo moon") ra **0** phim, chỉ phim NASA đời mới qua. Đã giữ 720p (quy tắc của anh) + thêm `--min-height 480` để mở khi anh cho phép; phim 4:3 dựng trên nền mờ, không cắt. → Anh có muốn hạ mặc định xuống 480 cho phim tư liệu không?
 2. **Prelinger bắt buộc `licenseurl`** (theo FAQ của chính Prelinger: nhiều phim không phải PD) → mất ~82% kho Prelinger. Tôi chọn chặt. Nới thì rủi ro bản quyền.
 3. **`headline` dịch tiêu đề sang tiếng Việt.** Tôi ghi trong hướng dẫn là được dịch (nguồn ghi ở `script.md`). Nếu anh muốn giữ nguyên văn tiếng Anh trên mẩu báo, cần đổi hướng dẫn.

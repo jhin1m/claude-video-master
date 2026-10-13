@@ -66,6 +66,7 @@ export interface Scene {
     asset: string | null; // path relative to the project dir
     /** Footage (stock, archival film): the untrimmed source and where the scene's cut starts in it (lets render add transition handles). */
     clip?: { file: string; start: number };
+    kenBurns?: false; // render leaves this footage still (set for SD archival film)
     status: 'todo' | 'ready';
     spec?: unknown; // graphic template data for animation/text_card (see src/graphics/templates.ts)
     /**

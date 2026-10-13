@@ -14,10 +14,11 @@ export const USER_AGENT = 'claude-video-master/0.1 (local video pipeline; +https
 const SEARCH = 'https://archive.org/advancedsearch.php';
 const META = 'https://archive.org/metadata/';
 /**
- * User rule: footage below 720p is dropped. Most archival film on IA is 480p (4:3) — `--min-height 480`
- * lowers it per search/pick (framed over a blurred fill, never cropped); see the report.
+ * Archival film floor is 480p (user 2026-10-13: almost all pre-1970 film on IA is 480p 4:3; Pexels stays ≥ 1080p).
+ * Film below SD_BELOW is framed whole over a blurred fill and rendered without Ken Burns (zooming softens it).
  */
-export const MIN_VIDEO_HEIGHT = 720;
+export const MIN_VIDEO_HEIGHT = 480;
+export const SD_BELOW = 720;
 export const MIN_IMAGE_SIDE = 1200;
 export const MAX_RESULTS = 10;
 const META_CALLS = 20; // per search: metadata look-ups before giving up on more results

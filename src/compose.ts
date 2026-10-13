@@ -129,7 +129,7 @@ export function chapterComposition(p: Project, scenes: Scene[], timings: Timing[
     }
     if (graphic) {
       if (s.visual.spec) for (const c of soundCues(validateSpec(s.id, s.visual.spec))) cues.push({ file: SFX_FILE[c.sfx].file, at: clipStart + c.at, gain: c.gain * SFX_FILE[c.sfx].gain });
-    } else {
+    } else if (s.visual.kenBurns !== false) {
       const [from, to] = KEN_BURNS[kb++ % KEN_BURNS.length]!;
       tweens.push(`tl.fromTo("#kb${i}", ${from}, { ...${to}, duration: ${f3(clipEnd - clipStart)}, ease: "none" }, ${f3(clipStart)});`);
     }

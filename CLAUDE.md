@@ -94,8 +94,8 @@ Trình tự làm việc đầy đủ: skill **`/video`** (`.claude/skills/video/
   cảnh, báo ⚠ khung đen. **Chắt lọc**: chỉ collection danh sách trắng `universal_newsreels`, `FedFlix`, `prelinger`, `wwIIarchive`,
   `nasa` (lý do + nguồn: `plans/reports/researcher-261013-internet-archive-report.md`); loại item nằm cả trong bộ upload cộng đồng
   (`opensource_movies`, `community`…), giấy phép NC/ND, `rights` có "fair use"/"all rights reserved", mô tả nhắc Getty; ba
-  collection đầu + `wwIIarchive` bắt buộc item có `licenseurl` PD/CC. Phim < 720p bị loại (quy tắc user); `--min-height 480`
-  chỉ dùng khi user đồng ý dùng phim SD cho video đó. Request qua hàng đợi chung `projects/.throttle/archive.org.json` (giãn ≥ 2 s),
+  collection đầu + `wwIIarchive` bắt buộc item có `licenseurl` PD/CC. Phim tư liệu ≥ 480p (user chốt 2026-10-13: phim trước 1970
+  gần như đều 480p; Pexels vẫn ≥ 1080p); `--min-height 720` để chỉ lấy HD. Phim < 720p ghi `visual.kenBurns: false` → render không zoom. Request qua hàng đợi chung `projects/.throttle/archive.org.json` (giãn ≥ 2 s),
   502/`BACKEND_ERROR` tự thử lại 3 lần. Scene dùng Internet Archive vẫn là `archive` → bắt buộc caption. Dùng cho phim tư liệu
   1920–1967, Mỹ, NASA; ảnh tĩnh vẫn ưu tiên Commons; không dùng cho chủ đề hiện đại.
 - Render (`src/compose.ts`): mỗi chapter là một composition HyperFrames ở `projects/<slug>/compose/chNN/`

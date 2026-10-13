@@ -54,8 +54,8 @@ Mỗi lần render chỉ giữ **một bản** (file gốc `cvm` xuất ra); kh�
    - `archive` **dạng phim** (thước phim thời sự, phim chính phủ Mỹ, phim quảng cáo/giáo dục cũ, Apollo/NASA) — Internet Archive:
      `./cvm ia search <id> "<query tiếng Anh>"` (`--type image` cho ảnh NASA) → `./cvm ia pick <id> <identifier>` (cắt đúng đoạn
      từ server, không tải cả phim; `--start s` chọn đoạn) → xem `visuals/chNN/sNNN.jpg`, có ⚠ khung đen thì pick lại `--start` khác.
-     Chỉ collection danh sách trắng + giấy phép PD/CC0/CC BY/BY-SA; phim < 720p bị loại — **chỉ** thêm `--min-height 480` khi user
-     đã đồng ý dùng phim SD cho video đó (phần lớn phim tư liệu trước 1970 là 480p 4:3; dựng trên nền mờ, không cắt).
+     Chỉ collection danh sách trắng + giấy phép PD/CC0/CC BY/BY-SA; phim ≥ 480p (phần lớn phim tư liệu trước 1970
+     là 480p 4:3: dựng trên nền mờ, không cắt, render không Ken Burns); `--min-height 720` khi chỉ muốn HD.
      Vẫn bắt buộc `visual.caption` (sự kiện + năm + nguồn, vd. "Bản tin Universal · 6/6/1944").
    - **Thứ tự ưu tiên nguồn**: footage chung chung hiện đại → Pexels; ảnh tư liệu (bản thảo, tranh khắc, chân dung, mọi nước)
      → Wikimedia Commons; **phim** tư liệu 1920–1967 / Mỹ / NASA → Internet Archive; số liệu, quy trình, mốc thời gian →

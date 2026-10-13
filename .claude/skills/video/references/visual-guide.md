@@ -9,7 +9,7 @@
 | Địa lý thật: tỉnh, nước, khu vực, tuyến đường | `animation` (spec geo) | bản đồ thật, mọi nước; không bao giờ để AI vẽ bản đồ |
 | Bối cảnh thật chung chung: nhà máy, cảng, đô thị, con người | `stock` | không gắn nhãn sai địa điểm/công ty |
 | Hiện vật, bản thảo, tranh khắc, chân dung, ảnh lịch sử **có thật** | `archive` (Wikimedia Commons) | đúng vật/người được nhắc; không để AI vẽ thay; **kèm chú thích dữ kiện** (tên, năm sinh–mất / năm + nơi) |
-| **Thước phim** tư liệu có thật: thời sự 1929–1967, Thế chiến II, chiến tranh Lạnh, Apollo/NASA, phim chính phủ Mỹ, quảng cáo/giáo dục cũ | `archive` (Internet Archive, `cvm ia`) | phim ≥ 720p (SD chỉ khi user cho); kèm caption sự kiện + năm; tránh logo NASA, người nhận diện được |
+| **Thước phim** tư liệu có thật: thời sự 1929–1967, Thế chiến II, chiến tranh Lạnh, Apollo/NASA, phim chính phủ Mỹ, quảng cáo/giáo dục cũ | `archive` (Internet Archive, `cvm ia`) | phim ≥ 480p (SD không zoom); kèm caption sự kiện + năm; tránh logo NASA, người nhận diện được |
 | Thứ không quay được: quá khứ, ý niệm, cảnh đặc thù | Pexels/Commons/đồ hoạ trước; `ai_image` → `ai_video` chỉ khi cả ba không có | phương án cuối; theo trần credit; không có Higgsfield thì bỏ AI |
 | Con số cần bối cảnh mà footage không có | `animation` + `bg` là ảnh Higgsfield | chỉ khi Pexels không có cảnh hợp; AI lo không khí, mẫu HTML lo số |
 | Danh sách xếp hạng "top N", "N điều…" | `animation` (spec `rank`) | đếm ngược, hạng 1 hiện cuối |
@@ -52,8 +52,8 @@ Năm/nơi lấy từ trang Commons hoặc nguồn trong `script.md`, không đo�
 Tiếng Anh, danh từ cụ thể của thời đó: `D-Day invasion`, `atomic bomb test`, `Sputnik`, `Berlin airlift`, `apollo moon`,
 `space shuttle launch`, `television commercials 1950s`, `assembly line 1940s`. Chỉ tìm trong collection danh sách trắng
 (`universal_newsreels`, `FedFlix`, `prelinger`, `wwIIarchive`, `nasa`); thu hẹp bằng `--collection universal_newsreels`.
-Thực tế: phim trước 1970 hầu hết là 480p 4:3 → mặc định (≥ 720p) chủ yếu ra phim NASA đời mới; muốn dùng thước phim cũ thì
-hỏi user cho `--min-height 480` (hình mềm hơn, dựng trên nền mờ). Ảnh tĩnh: `--type image` (chủ yếu NASA) — chân dung,
+Phim trước 1970 hầu hết là 480p 4:3 → mặc định nhận ≥ 480p (dựng trọn trên nền mờ, render không Ken Burns vì zoom làm
+mềm thêm); `--min-height 720` khi chỉ muốn phim HD. Ảnh tĩnh: `--type image` (chủ yếu NASA) — chân dung,
 bản thảo vẫn tìm Commons trước.
 **Duyệt bằng mắt**: logo/nhãn hiệu (quảng cáo cũ có nhãn hàng thật), watermark "Prelinger"/Getty in trên hình, khung đen
 (`cvm` báo ⚠), người nhận diện được trong ngữ cảnh quảng cáo, nội dung tuyên truyền (lời đọc phải nói rõ bối cảnh).
