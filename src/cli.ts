@@ -36,7 +36,7 @@ const USAGE = `cvm <lệnh> [--project <slug>]
                                       (Commons: tải từng ảnh, giãn 5–8 s, 429 → chờ Retry-After)
   ia search <sceneId> "<query>" [--type video|image] [--collection id] [--min-height N]
                                       phim/ảnh tư liệu Internet Archive, chỉ collection danh sách trắng (universal_newsreels,
-                                      FedFlix, prelinger, wwIIarchive, nasa); phim ≥ 720p (--min-height 480 khi user cho dùng SD)
+                                      FedFlix, prelinger, wwIIarchive, nasa); phim ≥ 480p (--min-height 720 khi chỉ muốn HD)
   ia pick <sceneId> <identifier> [--file f] [--start s] [--fit cover|contain] [--bg] [--min-height N]
                                       phim: cắt đúng đoạn từ server (không tải cả phim) → 1920×1080; ảnh: dựng khung
   ia pick --batch picks.json          [{"scene","id","file"?,"start"?,"fit"?,"bg"?,"type"?}] — ghi manifest một lần
